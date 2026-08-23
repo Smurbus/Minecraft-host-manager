@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Connexion – Contrôleur Minecraft{% endblock %}
+{% block content %}
+<div class="login-card">
+  <h1>🎮 Contrôleur serveur Minecraft</h1>
+  <form method="post" action="{{ url_for('auth.login', next=request.args.get('next')) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if error %}
+      <p class="alert alert-error">{{ error }}</p>
+    {% endif %}
+
+    <label for="username">Utilisateur</label>
+    <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+
+    <label for="password">Mot de passe</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required>
+
+    <button type="submit">Se connecter</button>
+  </form>
+</div>
+{% endblock %}

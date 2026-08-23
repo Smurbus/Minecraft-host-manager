@@ -1,0 +1,133 @@
+:root {
+  color-scheme: light dark;
+  --bg: #10141a;
+  --card-bg: #1b212b;
+  --text: #e8ecf1;
+  --muted: #9aa5b1;
+  --accent: #4caf50;
+  --danger: #e5484d;
+  --warn: #e0a72e;
+  --border: #2a3241;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+  display: flex;
+  justify-content: center;
+}
+
+.page {
+  width: 100%;
+  max-width: 640px;
+  padding: 24px 16px 48px;
+}
+
+/* --- Login --- */
+.login-card {
+  margin-top: 15vh;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+}
+.login-card h1 { text-align: center; margin-top: 0; font-size: 1.4rem; }
+.login-card form { display: flex; flex-direction: column; gap: 8px; }
+.login-card label { margin-top: 8px; color: var(--muted); font-size: 0.9rem; }
+.login-card input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #10141a;
+  color: var(--text);
+  font-size: 1rem;
+}
+.login-card button {
+  margin-top: 20px;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* --- Dashboard --- */
+.topbar { display: flex; justify-content: space-between; align-items: center; }
+.topbar h1 { font-size: 1.3rem; }
+.link-button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.status-card {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+}
+.status-icon { font-size: 2.4rem; line-height: 1; }
+.status-text h2 { margin: 0 0 4px; font-size: 1.15rem; }
+.muted { color: var(--muted); margin: 2px 0; font-size: 0.9rem; }
+
+.status-card[data-state="pc_off"] .status-icon::before { content: "🔴"; }
+.status-card[data-state="server_off"] .status-icon::before { content: "🟠"; }
+.status-card[data-state="starting"] .status-icon::before { content: "🟡"; }
+.status-card[data-state="stopping"] .status-icon::before { content: "🟡"; }
+.status-card[data-state="available"] .status-icon::before { content: "🟢"; }
+
+.actions { display: flex; gap: 12px; margin: 24px 0; }
+.btn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 10px;
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-start { background: var(--accent); color: #fff; }
+.btn-stop { background: var(--danger); color: #fff; }
+.btn-secondary { background: #333c4a; color: var(--text); }
+
+.hint { color: var(--muted); font-size: 0.85rem; text-align: center; }
+
+.alert { padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; }
+.alert-error { background: rgba(229, 72, 77, 0.15); color: #ff8f92; white-space: pre-wrap; }
+.hidden { display: none !important; }
+
+/* --- Modal --- */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-box {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+}
+.modal-actions { display: flex; gap: 12px; margin-top: 20px; }

@@ -1,0 +1,17 @@
+[Unit]
+Description=Contrôleur web du serveur Minecraft (Raspberry Pi)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Minecraft-host-manager
+Environment=PATH=/home/pi/Minecraft-host-manager/venv/bin
+# Écoute uniquement en local : le reverse proxy (Caddy/Nginx) gère le TLS et l'exposition externe.
+ExecStart=/home/pi/Minecraft-host-manager/venv/bin/waitress-serve --listen=127.0.0.1:8000 wsgi:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

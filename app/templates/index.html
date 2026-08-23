@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Contrôleur serveur Minecraft{% endblock %}
+{% block content %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<div class="dashboard">
+  <header class="topbar">
+    <h1>🎮 Serveur Minecraft</h1>
+    <form method="post" action="{{ url_for('auth.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="link-button">Déconnexion</button>
+    </form>
+  </header>
+
+  <section class="status-card" id="status-card" data-state="unknown">
+    <div class="status-icon" id="status-icon">⏳</div>
+    <div class="status-text">
+      <h2 id="status-label">Chargement du statut…</h2>
+      <p id="status-players" class="muted"></p>
+      <p id="status-message" class="muted"></p>
+      <p id="status-error" class="alert alert-error hidden"></p>
+    </div>
+  </section>
+
+  <section class="actions">
+    <button id="btn-start" class="btn btn-start" disabled>▶️ Démarrer le PC + le serveur</button>
+    <button id="btn-stop" class="btn btn-stop" disabled>⏹️ Éteindre le serveur + le PC</button>
+  </section>
+
+  <p class="hint">Le statut se met à jour automatiquement toutes les 5 secondes. L'extinction automatique intervient après 30 minutes sans aucun joueur connecté.</p>
+</div>
+
+<div id="confirm-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+  <div class="modal-box">
+    <h3 id="confirm-title">⚠️ Des joueurs sont connectés</h3>
+    <p id="confirm-message"></p>
+    <div class="modal-actions">
+      <button id="confirm-cancel" class="btn btn-secondary">Annuler</button>
+      <button id="confirm-ok" class="btn btn-stop">Éteindre quand même</button>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

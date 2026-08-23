@@ -1,0 +1,24 @@
+# Fichiers de configuration confidentiels (adresse MAC, IP, identifiants SSH,
+# chemin du script, mots de passe...) : NE JAMAIS committer.
+instance/config.py
+
+# Environnements virtuels Python
+venv/
+.venv/
+env/
+
+# Fichiers Python compilés
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Fichiers d'environnement
+.env
+.env.*
+
+# Divers OS / éditeurs
+.DS_Store
+Thumbs.db
+.vscode/
