@@ -84,6 +84,12 @@ body {
 .status-icon { font-size: 2.4rem; line-height: 1; }
 .status-text h2 { margin: 0 0 4px; font-size: 1.15rem; }
 .muted { color: var(--muted); margin: 2px 0; font-size: 0.9rem; }
+.countdown {
+  margin: 6px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--warn);
+}
 
 .status-card[data-state="pc_off"] .status-icon::before { content: "🔴"; }
 .status-card[data-state="server_off"] .status-icon::before { content: "🟠"; }

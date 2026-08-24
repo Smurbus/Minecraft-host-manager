@@ -7,6 +7,7 @@
     card: document.getElementById("status-card"),
     label: document.getElementById("status-label"),
     players: document.getElementById("status-players"),
+    countdown: document.getElementById("status-countdown"),
     message: document.getElementById("status-message"),
     error: document.getElementById("status-error"),
     btnStart: document.getElementById("btn-start"),
@@ -28,6 +29,51 @@
 
   const POLL_MS = 5000;
   let polling = null;
+
+  // --- Compte à rebours avant extinction automatique ---
+  // Resynchronisé à chaque réponse de /api/status (valeur faisant autorité,
+  // calculée côté serveur), puis décompté localement à la seconde entre deux
+  // rafraîchissements pour un affichage fluide.
+  let countdownRemaining = null;
+  let countdownInterval = null;
+
+  function formatCountdown(totalSeconds) {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  function updateCountdownDisplay() {
+    if (countdownRemaining === null) {
+      els.countdown.classList.add("hidden");
+      return;
+    }
+    els.countdown.textContent = `⏳ Extinction automatique dans ${formatCountdown(countdownRemaining)} sans joueur connecté`;
+    els.countdown.classList.remove("hidden");
+  }
+
+  function setCountdown(seconds) {
+    if (typeof seconds !== "number") {
+      countdownRemaining = null;
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+      updateCountdownDisplay();
+      return;
+    }
+
+    countdownRemaining = Math.max(0, Math.round(seconds));
+    updateCountdownDisplay();
+
+    if (!countdownInterval) {
+      countdownInterval = setInterval(() => {
+        if (countdownRemaining === null) return;
+        countdownRemaining = Math.max(0, countdownRemaining - 1);
+        updateCountdownDisplay();
+      }, 1000);
+    }
+  }
 
   async function apiFetch(url, options = {}) {
     const opts = Object.assign({ headers: {} }, options);
@@ -59,6 +105,8 @@
       els.players.textContent = "";
       els.players.classList.add("hidden");
     }
+
+    setCountdown(status.auto_shutdown_seconds);
 
     els.message.textContent = status.message || "";
 

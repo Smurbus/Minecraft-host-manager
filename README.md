@@ -7,7 +7,7 @@ hôte Ubuntu dédié à un serveur Minecraft :
 - 🚀 **Lancement** du serveur Minecraft (via SSH + `tmux`)
 - 👀 **Statut en direct** (PC éteint / serveur éteint / démarrage / disponible), avec liste des joueurs connectés
 - 🛑 **Extinction** du serveur puis du PC (réservée aux administrateurs), avec confirmation si des joueurs sont connectés
-- 😴 **Extinction automatique** après 30 minutes sans aucun joueur connecté
+- 😴 **Extinction automatique** après 30 minutes sans aucun joueur connecté, avec **compte à rebours affiché en temps réel** dans l'interface
 - 🔐 Accès protégé par une session web (login/mot de passe), pensé pour être exposé sur Internet derrière un reverse proxy HTTPS
 - 👥 **Comptes multi-utilisateurs** : un administrateur peut générer des liens d'invitation à usage unique pour que d'autres joueurs créent leur propre compte (droits limités à démarrer + consulter le statut)
 
@@ -212,6 +212,14 @@ secondes) : dès que le nombre de joueurs connectés tombe à 0 pendant
 `AUTO_SHUTDOWN_MINUTES` (30 par défaut) minutes consécutives, la séquence
 d'extinction est déclenchée automatiquement, exactement comme un clic sur
 le bouton « Éteindre » sans confirmation nécessaire.
+
+Dès qu'il n'y a plus aucun joueur connecté (et que le serveur est
+disponible), un compte à rebours « ⏳ Extinction automatique dans MM:SS »
+s'affiche sur le tableau de bord, visible par tous les comptes (admin ou
+non). La valeur est calculée côté serveur à chaque appel de `/api/status`
+(précise à la seconde près, indépendamment du cycle de surveillance de 60s)
+et décomptée localement dans le navigateur entre deux rafraîchissements.
+Le compteur disparaît dès qu'un joueur se reconnecte.
 
 ## Sécurité
 

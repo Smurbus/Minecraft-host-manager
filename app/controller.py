@@ -165,6 +165,20 @@ class ServerController:
             else:
                 state = ServerState.SERVER_OFF
 
+            # En dehors d'une action de démarrage/arrêt en cours, on tient à
+            # jour le suivi d'inactivité ici aussi (pas seulement dans la
+            # boucle de surveillance, qui ne tourne que toutes les
+            # MONITOR_INTERVAL_SECONDS) pour que le compte à rebours affiché
+            # soit précis à la seconde près dès qu'il n'y a plus personne.
+            auto_shutdown_seconds = None
+            if action_state == ActionState.IDLE:
+                self._update_idle_tracking(mc)
+                if state == ServerState.AVAILABLE and mc is not None and mc.online == 0:
+                    idle_seconds = self._idle_seconds_locked()
+                    if idle_seconds is not None:
+                        remaining = self.cfg.AUTO_SHUTDOWN_MINUTES * 60 - idle_seconds
+                        auto_shutdown_seconds = max(0, round(remaining))
+
             result = {
                 "state": state,
                 "pc_reachable": pc_up,
@@ -175,6 +189,7 @@ class ServerController:
                     "max": mc.max if mc else 0,
                     "names": mc.players if mc else [],
                 },
+                "auto_shutdown_seconds": auto_shutdown_seconds,
             }
             self._status_cache = result
             self._status_cache_at = now
@@ -403,26 +418,46 @@ class ServerController:
             return
 
         mc = self.query_minecraft()
-        if mc is None:
-            # Serveur non lancé : rien à surveiller.
-            return
-
-        now = datetime.now(timezone.utc)
-        if mc.online > 0:
-            with self._lock:
-                self._last_seen_with_players_at = now
-            return
-
         with self._lock:
-            if self._last_seen_with_players_at is None:
-                self._last_seen_with_players_at = now
-                return
-            idle_for = (now - self._last_seen_with_players_at).total_seconds() / 60.0
+            self._update_idle_tracking(mc)
+            idle_seconds = self._idle_seconds_locked()
 
-        if idle_for >= self.cfg.AUTO_SHUTDOWN_MINUTES:
+        if mc is None or idle_seconds is None:
+            return
+
+        idle_minutes = idle_seconds / 60.0
+        if idle_minutes >= self.cfg.AUTO_SHUTDOWN_MINUTES:
             logger.info(
                 "Aucun joueur depuis %.1f minutes (seuil : %s min) : extinction automatique.",
-                idle_for,
+                idle_minutes,
                 self.cfg.AUTO_SHUTDOWN_MINUTES,
             )
             self.stop(force=True)
+
+    def _update_idle_tracking(self, mc: Optional[MCStatus]) -> None:
+        """Met à jour l'horodatage "dernière fois avec des joueurs".
+
+        Doit être appelé avec ``self._lock`` déjà acquis. Ne déclenche
+        jamais l'extinction elle-même (réservé à ``_monitor_tick``) : sert
+        uniquement à alimenter le compte à rebours affiché côté web et le
+        suivi d'inactivité.
+        """
+        now = datetime.now(timezone.utc)
+        if mc is None:
+            self._last_seen_with_players_at = None
+        elif mc.online > 0:
+            self._last_seen_with_players_at = now
+        elif self._last_seen_with_players_at is None:
+            self._last_seen_with_players_at = now
+
+    def _idle_seconds_locked(self) -> Optional[float]:
+        """Nombre de secondes écoulées depuis le dernier joueur connu.
+
+        Doit être appelé avec ``self._lock`` déjà acquis. Retourne None si
+        aucun suivi n'est en cours (pas de serveur lancé, ou joueurs
+        actuellement connectés).
+        """
+        if self._last_seen_with_players_at is None:
+            return None
+        now = datetime.now(timezone.utc)
+        return (now - self._last_seen_with_players_at).total_seconds()
