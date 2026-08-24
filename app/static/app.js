@@ -71,7 +71,9 @@
 
     const busy = status.state === "starting" || status.state === "stopping";
     els.btnStart.disabled = busy || status.state === "available";
-    els.btnStop.disabled = busy || status.state === "pc_off";
+    if (els.btnStop) {
+      els.btnStop.disabled = busy || status.state === "pc_off";
+    }
   }
 
   async function refreshStatus() {
@@ -108,6 +110,7 @@
   }
 
   async function doStop(force) {
+    if (!els.btnStop) return;
     els.btnStop.disabled = true;
     const { data } = await apiFetch("/api/stop", {
       method: "POST",
@@ -123,7 +126,9 @@
     refreshStatus();
   }
 
-  els.btnStop.addEventListener("click", () => doStop(false));
+  if (els.btnStop) {
+    els.btnStop.addEventListener("click", () => doStop(false));
+  }
   els.confirmCancel.addEventListener("click", closeModal);
   els.confirmOk.addEventListener("click", () => {
     closeModal();

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Administration – Contrôleur Minecraft{% endblock %}
+{% block content %}
+<div class="dashboard">
+  <header class="topbar">
+    <h1>🛠️ Administration</h1>
+    <a href="{{ url_for('main.index') }}" class="link-button">← Retour au tableau de bord</a>
+  </header>
+
+  <section class="admin-section">
+    <h2>Créer une invitation</h2>
+    <form method="post" action="{{ url_for('admin.create_invite') }}" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="role">Rôle du nouveau compte</label>
+      <select id="role" name="role">
+        <option value="user" selected>Utilisateur (démarrer + consulter le statut)</option>
+        <option value="admin">Administrateur (accès complet)</option>
+      </select>
+      <button type="submit" class="btn btn-start">Générer un lien d'invitation</button>
+    </form>
+    <p class="hint">Le lien généré est valable {{ invite_lifetime_hours if invite_lifetime_hours else 48 }} heures et ne peut être utilisé qu'une seule fois.</p>
+  </section>
+
+  <section class="admin-section">
+    <h2>Invitations</h2>
+    {% if invites %}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Rôle</th>
+          <th>Lien</th>
+          <th>Créée le</th>
+          <th>Expire le</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for invite in invites %}
+        <tr>
+          <td>{{ invite.role }}</td>
+          <td>
+            {% if invite.used_at %}
+              <span class="muted">utilisé par {{ invite.used_by }}</span>
+            {% elif invite.is_valid() %}
+              <code class="invite-link">{{ url_for('admin.register', token=invite.token, _external=True) }}</code>
+            {% else %}
+              <span class="muted">expiré</span>
+            {% endif %}
+          </td>
+          <td>{{ invite.created_at[:16].replace('T', ' ') }}</td>
+          <td>{{ invite.expires_at[:16].replace('T', ' ') }}</td>
+          <td>
+            {% if invite.used_at %}✅ utilisée
+            {% elif invite.is_valid() %}🟢 active
+            {% else %}⚪ expirée
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Aucune invitation créée pour l'instant.</p>
+    {% endif %}
+  </section>
+
+  <section class="admin-section">
+    <h2>Comptes existants</h2>
+    <table class="admin-table">
+      <thead>
+        <tr><th>Utilisateur</th><th>Rôle</th><th>Créé le</th></tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>{{ user.username }}</td>
+          <td>{{ user.role }}</td>
+          <td>{{ user.created_at[:16].replace('T', ' ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

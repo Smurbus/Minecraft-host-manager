@@ -6,9 +6,10 @@ hôte Ubuntu dédié à un serveur Minecraft :
 - 🔋 **Réveil** du PC par Wake-on-LAN
 - 🚀 **Lancement** du serveur Minecraft (via SSH + `tmux`)
 - 👀 **Statut en direct** (PC éteint / serveur éteint / démarrage / disponible), avec liste des joueurs connectés
-- 🛑 **Extinction** du serveur puis du PC, avec confirmation si des joueurs sont connectés
+- 🛑 **Extinction** du serveur puis du PC (réservée aux administrateurs), avec confirmation si des joueurs sont connectés
 - 😴 **Extinction automatique** après 30 minutes sans aucun joueur connecté
 - 🔐 Accès protégé par une session web (login/mot de passe), pensé pour être exposé sur Internet derrière un reverse proxy HTTPS
+- 👥 **Comptes multi-utilisateurs** : un administrateur peut générer des liens d'invitation à usage unique pour que d'autres joueurs créent leur propre compte (droits limités à démarrer + consulter le statut)
 
 ## Architecture
 
@@ -17,12 +18,15 @@ app/
   __init__.py     -> application factory Flask
   config.py       -> chargement de instance/config.py (+ valeurs par défaut)
   controller.py   -> WOL, SSH (paramiko), requêtes serveur MC (mcstatus), machine à états, veille auto
-  auth.py         -> login/logout, verrouillage anti brute-force
+  db.py           -> base SQLite (comptes utilisateurs + invitations à usage unique)
+  auth.py         -> login/logout, verrouillage anti brute-force, décorateurs login_required/admin_required
+  admin.py        -> page d'administration (créer des invitations), page d'inscription via lien d'invitation
   routes.py       -> page d'accueil + API JSON (/api/status, /api/start, /api/stop)
-  templates/       -> login.html, index.html
+  templates/       -> login.html, index.html, admin.html, register.html, error.html
   static/          -> style.css, app.js (polling + confirmation)
 instance/
   config.example.py -> modèle à copier en config.py (jamais commité, voir .gitignore)
+  app.db             -> base SQLite générée automatiquement au 1er lancement (jamais commitée)
 deploy/
   mc-controller.service -> unité systemd (production, via waitress)
   Caddyfile.example      -> reverse proxy HTTPS automatique
@@ -117,7 +121,34 @@ python run.py
 Ouvrez `http://IP_DU_RASPBERRY:8000` depuis un navigateur du réseau local,
 connectez-vous, puis testez démarrage/arrêt.
 
-## 6. Déploiement en production (systemd + waitress)
+## 6. Comptes utilisateurs et invitations
+
+Au premier lancement, l'application crée automatiquement un compte
+administrateur dans une base SQLite (`instance/app.db`, générée et ignorée
+par git) à partir de `ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` définis dans
+`instance/config.py`. Modifier ces valeurs par la suite n'a plus d'effet :
+la base de données est désormais la source de vérité.
+
+Pour inviter d'autres personnes à créer leur propre compte :
+
+1. Connectez-vous avec le compte administrateur.
+2. Cliquez sur **Administration** en haut du tableau de bord.
+3. Choisissez le rôle du nouveau compte puis cliquez sur **Générer un lien
+   d'invitation** :
+   - **Utilisateur** : peut démarrer le PC + le serveur et consulter le statut.
+   - **Administrateur** : accès complet, y compris éteindre le serveur et
+     générer de nouvelles invitations.
+4. Copiez le lien affiché (`https://.../register/<token>`) et envoyez-le à
+   la personne concernée. Le lien est valable 48h (`INVITE_LIFETIME_HOURS`)
+   et devient invalide dès qu'il a été utilisé une fois.
+5. La personne ouvre le lien, choisit un nom d'utilisateur et un mot de
+   passe (8 caractères minimum), puis peut se connecter normalement.
+
+Pour réinitialiser entièrement les comptes (par exemple en cas de test),
+arrêtez le service et supprimez `instance/app.db` : il sera recréé avec un
+nouveau compte admin basé sur `instance/config.py` au prochain démarrage.
+
+## 7. Déploiement en production (systemd + waitress)
 
 ```bash
 sudo cp deploy/mc-controller.service /etc/systemd/system/
@@ -127,7 +158,7 @@ sudo systemctl enable --now mc-controller
 sudo systemctl status mc-controller
 ```
 
-## 7. Exposition sur Internet (accès distant demandé)
+## 8. Exposition sur Internet (accès distant demandé)
 
 Ne forwardez **jamais** directement le port de l'application vers Internet.
 Utilisez un reverse proxy en HTTPS sur le Raspberry (ex. Caddy, qui gère
@@ -186,7 +217,12 @@ le bouton « Éteindre » sans confirmation nécessaire.
 
 - Session Flask signée par `SECRET_KEY`, cookie `HttpOnly` + `SameSite=Lax`
   (et `Secure` une fois en HTTPS).
-- Un seul compte administrateur, mot de passe haché (PBKDF2 via Werkzeug).
+- Comptes utilisateurs stockés en base SQLite, mots de passe hachés (PBKDF2
+  via Werkzeug), jamais en clair. Le bouton **Éteindre** n'est visible et
+  actif que pour les comptes administrateur (`/api/stop` renvoie 403 sinon).
+- Invitations à usage unique (token aléatoire 256 bits, expiration 48h),
+  consommées de façon atomique pour empêcher toute réutilisation, y compris
+  en cas de double soumission simultanée.
 - Verrouillage temporaire après plusieurs échecs de connexion consécutifs
   depuis la même IP (`LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_SECONDS`).
 - Protection CSRF (Flask-WTF) sur toutes les requêtes qui modifient l'état

@@ -19,7 +19,11 @@ MC_PORT = 25565
 TMUX_SESSION_NAME = "mcserver"       # nom de la session tmux créée par l'appli sur le PC hôte
 START_SCRIPT_PATH = "/chemin/vers/votre/script_de_lancement.sh"
 
-# --- Authentification web (un seul compte administrateur) ---
+# --- Authentification web ---
+# Ce compte sert uniquement à créer le tout premier compte administrateur en
+# base de données (au premier lancement). Les comptes suivants (y compris
+# d'autres admins) se créent ensuite via des liens d'invitation depuis la
+# page /admin - modifier ces valeurs après coup n'a aucun effet.
 ADMIN_USERNAME = "admin"
 # Générez ce hash avec : python generate_password_hash.py
 ADMIN_PASSWORD_HASH = "pbkdf2:sha256:REMPLACEZ_MOI"
@@ -28,6 +32,7 @@ SECRET_KEY = "REMPLACEZ_MOI_PAR_UNE_VALEUR_ALEATOIRE_LONGUE"
 
 # --- Comportement ---
 AUTO_SHUTDOWN_MINUTES = 30           # extinction auto après N minutes sans aucun joueur
+# INVITE_LIFETIME_HOURS = 48         # durée de validité des liens d'invitation (48h par défaut)
 
 # --- Sécurité (à activer une fois l'app servie en HTTPS derrière un reverse proxy) ---
 # SESSION_COOKIE_SECURE = True

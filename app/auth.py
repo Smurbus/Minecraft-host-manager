@@ -1,9 +1,9 @@
 """Authentification par session pour l'interface web.
 
-Un seul compte administrateur (défini dans instance/config.py) protège
-l'ensemble de l'application. Un verrouillage temporaire est appliqué après
-plusieurs échecs de connexion depuis la même adresse IP, utile car
-l'application peut être exposée sur Internet.
+Les comptes utilisateurs (admin + comptes créés via invitation) sont
+stockés dans la base SQLite (app/db.py). Un verrouillage temporaire est
+appliqué après plusieurs échecs de connexion depuis la même adresse IP,
+utile car l'application peut être exposée sur Internet.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from flask import (
     session,
     url_for,
 )
-from werkzeug.security import check_password_hash
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -62,6 +61,18 @@ def login_required(view):
     return wrapped
 
 
+def admin_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("auth.login", next=request.path))
+        if session.get("role") != "admin":
+            return render_template("error.html", message="Accès réservé à l'administrateur."), 403
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     cfg = current_app.config
@@ -74,14 +85,13 @@ def login():
         else:
             username = request.form.get("username", "")
             password = request.form.get("password", "")
-            valid = username == cfg["ADMIN_USERNAME"] and check_password_hash(
-                cfg["ADMIN_PASSWORD_HASH"], password
-            )
-            if valid:
+            user = current_app.db.verify_password(username, password)
+            if user is not None:
                 _clear_failures(ip)
                 session.clear()
                 session["logged_in"] = True
-                session["username"] = username
+                session["username"] = user.username
+                session["role"] = user.role
                 session.permanent = True
                 next_url = request.args.get("next") or url_for("main.index")
                 return redirect(next_url)

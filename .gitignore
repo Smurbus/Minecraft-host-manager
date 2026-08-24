@@ -2,6 +2,11 @@
 # chemin du script, mots de passe...) : NE JAMAIS committer.
 instance/config.py
 
+# Base de données des comptes utilisateurs / invitations (générée au premier
+# lancement) : contient des hachages de mots de passe, ne jamais committer.
+instance/app.db
+instance/*.db-journal
+
 # Environnements virtuels Python
 venv/
 .venv/
