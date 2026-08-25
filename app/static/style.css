@@ -115,8 +115,9 @@ body {
 
 .hint { color: var(--muted); font-size: 0.85rem; text-align: center; }
 
-.alert { padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; }
+.alert { padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; margin: 8px 0; }
 .alert-error { background: rgba(229, 72, 77, 0.15); color: #ff8f92; white-space: pre-wrap; }
+.alert-success { background: rgba(76, 175, 80, 0.15); color: #8bd68f; }
 .hidden { display: none !important; }
 
 /* --- Modal --- */
@@ -156,6 +157,16 @@ body {
   background: #10141a;
   color: var(--text);
 }
+.stacked-form { display: flex; flex-direction: column; gap: 6px; max-width: 360px; }
+.stacked-form label { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
+.stacked-form input, .stacked-form select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #10141a;
+  color: var(--text);
+}
+.stacked-form button { margin-top: 12px; align-self: flex-start; }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .admin-table th, .admin-table td {
   text-align: left;

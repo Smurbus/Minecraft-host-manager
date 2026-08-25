@@ -68,7 +68,7 @@
     <h2>Comptes existants</h2>
     <table class="admin-table">
       <thead>
-        <tr><th>Utilisateur</th><th>Rôle</th><th>Créé le</th></tr>
+        <tr><th>Utilisateur</th><th>Rôle</th><th>Créé le</th><th></th></tr>
       </thead>
       <tbody>
         {% for user in users %}
@@ -76,6 +76,7 @@
           <td>{{ user.username }}</td>
           <td>{{ user.role }}</td>
           <td>{{ user.created_at[:16].replace('T', ' ') }}</td>
+          <td><a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="link-button">Gérer</a></td>
         </tr>
         {% endfor %}
       </tbody>

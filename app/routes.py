@@ -6,8 +6,13 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, render_template, request, session
 
 from .auth import login_required
+from .db import EVENT_START, EVENT_STOP
 
 main_bp = Blueprint("main", __name__)
+
+
+def _client_ip() -> str:
+    return request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
 
 
 @main_bp.route("/")
@@ -32,6 +37,13 @@ def api_status():
 def api_start():
     controller = current_app.controller
     started = controller.start()
+    current_app.db.log_activity(
+        session.get("user_id"),
+        session.get("username", "?"),
+        EVENT_START,
+        ip_address=_client_ip(),
+        details="ok" if started else "busy",
+    )
     if not started:
         return jsonify({"ok": False, "reason": "busy"}), 409
     return jsonify({"ok": True}), 202
@@ -48,6 +60,16 @@ def api_stop():
     force = bool(payload.get("force", False))
 
     result = controller.stop(force=force)
+
+    if not result.get("confirm_required"):
+        details = "started" if result.get("started") else result.get("reason", "busy")
+        current_app.db.log_activity(
+            session.get("user_id"),
+            session.get("username", "?"),
+            EVENT_STOP,
+            ip_address=_client_ip(),
+            details=f"force={force} result={details}",
+        )
 
     if result.get("confirm_required"):
         return jsonify(result), 200

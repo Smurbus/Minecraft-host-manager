@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ user.username }} – Administration{% endblock %}
+{% block content %}
+<div class="dashboard">
+  <header class="topbar">
+    <h1>👤 {{ user.username }}</h1>
+    <a href="{{ url_for('admin.dashboard') }}" class="link-button">← Retour à l'administration</a>
+  </header>
+
+  <section class="admin-section">
+    <h2>Informations du compte</h2>
+    <form method="post" action="{{ url_for('admin.update_user', user_id=user.id) }}" class="stacked-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label for="username">Nom d'utilisateur</label>
+      <input type="text" id="username" name="username" value="{{ user.username }}" minlength="3" required>
+
+      <label for="role">Rôle</label>
+      <select id="role" name="role" {% if is_last_admin %}disabled{% endif %}>
+        <option value="user" {% if user.role == 'user' %}selected{% endif %}>Utilisateur (démarrer + consulter le statut)</option>
+        <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrateur (accès complet)</option>
+      </select>
+      {% if is_last_admin %}
+        <p class="hint">C'est le dernier compte administrateur : impossible de lui retirer ce rôle. Créez d'abord un autre administrateur si besoin.</p>
+      {% endif %}
+
+      <button type="submit" class="btn btn-start">Enregistrer</button>
+    </form>
+    <p class="muted">Créé le {{ user.created_at[:16].replace('T', ' ') }}</p>
+  </section>
+
+  <section class="admin-section">
+    <h2>Réinitialiser le mot de passe</h2>
+    <form method="post" action="{{ url_for('admin.reset_password', user_id=user.id) }}" class="stacked-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label for="password">Nouveau mot de passe (8 caractères minimum)</label>
+      <input type="password" id="password" name="password" minlength="8" required>
+
+      <label for="confirm">Confirmer le nouveau mot de passe</label>
+      <input type="password" id="confirm" name="confirm" minlength="8" required>
+
+      <button type="submit" class="btn btn-secondary">Réinitialiser le mot de passe</button>
+    </form>
+  </section>
+
+  <section class="admin-section">
+    <h2>Supprimer ce compte</h2>
+    {% if is_self %}
+      <p class="hint">Vous ne pouvez pas supprimer votre propre compte.</p>
+    {% elif is_last_admin %}
+      <p class="hint">Impossible de supprimer le dernier compte administrateur.</p>
+    {% else %}
+      <form method="post" action="{{ url_for('admin.delete_user', user_id=user.id) }}" onsubmit="return confirm('Supprimer définitivement le compte « {{ user.username }} » ? Cette action est irréversible.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-stop">Supprimer le compte</button>
+      </form>
+    {% endif %}
+  </section>
+
+  <section class="admin-section">
+    <h2>Activité récente</h2>
+    {% if activity %}
+    <table class="admin-table">
+      <thead>
+        <tr><th>Date</th><th>Événement</th><th>Adresse IP</th><th>Détails</th></tr>
+      </thead>
+      <tbody>
+        {% for entry in activity %}
+        <tr>
+          <td>{{ entry.created_at[:19].replace('T', ' ') }}</td>
+          <td>
+            {% if entry.event_type == 'login' %}🔑 Connexion
+            {% elif entry.event_type == 'start' %}▶️ Démarrage demandé
+            {% elif entry.event_type == 'stop' %}⏹️ Extinction demandée
+            {% else %}{{ entry.event_type }}
+            {% endif %}
+          </td>
+          <td>{{ entry.ip_address or '—' }}</td>
+          <td class="muted">{{ entry.details or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Aucune activité enregistrée pour ce compte.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

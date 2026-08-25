@@ -22,6 +22,10 @@ from werkzeug.security import check_password_hash
 ROLE_ADMIN = "admin"
 ROLE_USER = "user"
 
+EVENT_LOGIN = "login"
+EVENT_START = "start"
+EVENT_STOP = "stop"
+
 
 def _db_path(instance_path: str) -> str:
     return os.path.join(instance_path, "app.db")
@@ -56,6 +60,17 @@ class Invite:
             return False
         expires = datetime.fromisoformat(self.expires_at)
         return datetime.now(timezone.utc) < expires
+
+
+@dataclass
+class ActivityEntry:
+    id: int
+    user_id: Optional[int]
+    username: str
+    event_type: str
+    ip_address: Optional[str]
+    details: Optional[str]
+    created_at: str
 
 
 class Database:
@@ -101,6 +116,23 @@ class Database:
                     used_by TEXT
                 )
                 """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS activity_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    username TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    ip_address TEXT,
+                    details TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_activity_user_id ON activity_log(user_id)"
             )
 
     # ------------------------------------------------------------------
@@ -157,6 +189,80 @@ class Database:
         with self._connect() as conn:
             rows = conn.execute("SELECT * FROM users ORDER BY created_at").fetchall()
             return [User(**dict(row)) for row in rows]
+
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+            return User(**dict(row)) if row else None
+
+    def count_admins(self) -> int:
+        with self._connect() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) AS c FROM users WHERE role = ?", (ROLE_ADMIN,)
+            ).fetchone()["c"]
+
+    def update_user(self, user_id: int, username: str, role: str) -> None:
+        """Renomme un compte et/ou change son rôle.
+
+        Lève ValueError si le nouveau nom d'utilisateur est déjà pris par un
+        autre compte. Les garde-fous "dernier administrateur" sont du
+        ressort de l'appelant (app/admin.py), qui a accès à la session pour
+        savoir qui effectue l'opération.
+        """
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT id FROM users WHERE username = ? AND id != ?", (username, user_id)
+            ).fetchone()
+            if existing:
+                raise ValueError(f"Le nom d'utilisateur '{username}' est déjà pris.")
+            conn.execute(
+                "UPDATE users SET username = ?, role = ? WHERE id = ?",
+                (username, role, user_id),
+            )
+
+    def set_password(self, user_id: int, password_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id)
+            )
+
+    def delete_user(self, user_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+    # ------------------------------------------------------------------
+    # Journal d'activité (connexions + actions démarrer/éteindre)
+    # ------------------------------------------------------------------
+
+    def log_activity(
+        self,
+        user_id: Optional[int],
+        username: str,
+        event_type: str,
+        ip_address: Optional[str] = None,
+        details: Optional[str] = None,
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO activity_log (user_id, username, event_type, ip_address, details, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (user_id, username, event_type, ip_address, details, datetime.now(timezone.utc).isoformat()),
+            )
+
+    def list_activity_for_user(self, user_id: int, limit: int = 200) -> list[ActivityEntry]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM activity_log
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+            return [ActivityEntry(**dict(row)) for row in rows]
 
     # ------------------------------------------------------------------
     # Invitations

@@ -18,11 +18,11 @@ app/
   __init__.py     -> application factory Flask
   config.py       -> chargement de instance/config.py (+ valeurs par défaut)
   controller.py   -> WOL, SSH (paramiko), requêtes serveur MC (mcstatus), machine à états, veille auto
-  db.py           -> base SQLite (comptes utilisateurs + invitations à usage unique)
+  db.py           -> base SQLite (comptes utilisateurs, invitations à usage unique, journal d'activité)
   auth.py         -> login/logout, verrouillage anti brute-force, décorateurs login_required/admin_required
-  admin.py        -> page d'administration (créer des invitations), page d'inscription via lien d'invitation
+  admin.py        -> administration : invitations, inscription, gestion des comptes (modifier/supprimer/activité)
   routes.py       -> page d'accueil + API JSON (/api/status, /api/start, /api/stop)
-  templates/       -> login.html, index.html, admin.html, register.html, error.html
+  templates/       -> login.html, index.html, admin.html, user_detail.html, register.html, error.html
   static/          -> style.css, app.js (polling + confirmation)
 instance/
   config.example.py -> modèle à copier en config.py (jamais commité, voir .gitignore)
@@ -143,6 +143,21 @@ Pour inviter d'autres personnes à créer leur propre compte :
    et devient invalide dès qu'il a été utilisé une fois.
 5. La personne ouvre le lien, choisit un nom d'utilisateur et un mot de
    passe (8 caractères minimum), puis peut se connecter normalement.
+
+Depuis la page **Administration**, chaque compte listé dispose d'un lien
+**Gérer** menant à sa fiche détaillée, où l'administrateur peut :
+
+- **Modifier** le nom d'utilisateur et/ou le rôle du compte.
+- **Réinitialiser** son mot de passe (sans avoir besoin de connaître l'ancien).
+- **Supprimer** définitivement le compte.
+- **Consulter son activité** : historique des connexions (date/heure + IP)
+  et des actions démarrer/éteindre déclenchées par ce compte.
+
+Quelques garde-fous empêchent de se retrouver bloqué hors de
+l'administration :
+- Impossible de supprimer son propre compte.
+- Impossible de supprimer ou de rétrograder le **dernier** compte
+  administrateur restant (créez d'abord un second admin si nécessaire).
 
 Pour réinitialiser entièrement les comptes (par exemple en cas de test),
 arrêtez le service et supprimez `instance/app.db` : il sera recréé avec un

@@ -22,6 +22,8 @@ from flask import (
     url_for,
 )
 
+from .db import EVENT_LOGIN
+
 auth_bp = Blueprint("auth", __name__)
 
 _lock = threading.Lock()
@@ -90,9 +92,11 @@ def login():
                 _clear_failures(ip)
                 session.clear()
                 session["logged_in"] = True
+                session["user_id"] = user.id
                 session["username"] = user.username
                 session["role"] = user.role
                 session.permanent = True
+                current_app.db.log_activity(user.id, user.username, EVENT_LOGIN, ip_address=ip)
                 next_url = request.args.get("next") or url_for("main.index")
                 return redirect(next_url)
 
