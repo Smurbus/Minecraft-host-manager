@@ -1,9 +1,9 @@
-"""Chargement de la configuration de l'application.
+"""Loading the application configuration.
 
-Les valeurs *confidentielles* (adresse MAC, IP, identifiants SSH, chemin du
-script de lancement, secrets...) vivent dans ``instance/config.py``, un
-fichier volontairement absent du dépôt git (voir .gitignore). Le fichier
-``instance/config.example.py`` sert de modèle à copier/adapter.
+The *confidential* values (MAC address, IP, SSH credentials, start script
+path, secrets...) live in ``instance/config.py``, a file intentionally absent
+from the git repository (see .gitignore). The ``instance/config.example.py``
+file serves as the template to copy and adapt.
 """
 
 from __future__ import annotations
@@ -11,20 +11,20 @@ from __future__ import annotations
 import importlib.util
 import os
 
-# Valeurs par défaut, surchargées par instance/config.py si présentes.
+# Default values, overridden by instance/config.py when present.
 DEFAULTS = {
     "SSH_PORT": 22,
     "MC_PORT": 25565,
     "TMUX_SESSION_NAME": "mcserver",
     "AUTO_SHUTDOWN_MINUTES": 30,
     "SSH_TIMEOUT": 10,
-    "PC_BOOT_TIMEOUT": 180,       # secondes laissées au PC pour répondre après le WOL
-    "SERVER_START_TIMEOUT": 300,  # secondes laissées au serveur MC pour devenir disponible
-    "SERVER_STOP_TIMEOUT": 120,   # secondes laissées au serveur MC pour s'arrêter proprement
-    "PC_SHUTDOWN_TIMEOUT": 120,   # secondes laissées au PC pour s'éteindre
-    "POLL_INTERVAL": 5,           # intervalle (s) entre deux vérifications pendant start/stop
-    "STATUS_CACHE_SECONDS": 2,    # anti rafale sur /api/status
-    "MONITOR_INTERVAL_SECONDS": 60,  # fréquence de la surveillance auto-extinction
+    "PC_BOOT_TIMEOUT": 180,       # seconds allowed for the PC to respond after WOL
+    "SERVER_START_TIMEOUT": 300,  # seconds allowed for the MC server to become available
+    "SERVER_STOP_TIMEOUT": 120,   # seconds allowed for the MC server to stop cleanly
+    "PC_SHUTDOWN_TIMEOUT": 120,   # seconds allowed for the PC to shut down
+    "POLL_INTERVAL": 5,           # interval (s) between checks during start/stop
+    "STATUS_CACHE_SECONDS": 2,    # burst protection on /api/status
+    "MONITOR_INTERVAL_SECONDS": 60,  # frequency of the auto-shutdown monitor
     "SESSION_LIFETIME_HOURS": 12,
     "LOGIN_MAX_ATTEMPTS": 5,
     "LOGIN_LOCKOUT_SECONDS": 900,
@@ -45,7 +45,7 @@ REQUIRED_KEYS = [
 
 
 class Config:
-    """Espace de noms simple contenant toute la configuration résolue."""
+    """Simple namespace containing the fully resolved configuration."""
 
 
 def _instance_dir() -> str:
@@ -58,9 +58,9 @@ def load_config() -> Config:
 
     if not os.path.exists(config_file):
         raise RuntimeError(
-            "Fichier 'instance/config.py' introuvable.\n"
-            "Copiez 'instance/config.example.py' vers 'instance/config.py' "
-            "puis renseignez vos valeurs (voir README.md)."
+            "File 'instance/config.py' not found.\n"
+            "Copy 'instance/config.example.py' to 'instance/config.py' "
+            "then fill in your values (see README.md)."
         )
 
     spec = importlib.util.spec_from_file_location("instance_config", config_file)
@@ -78,7 +78,7 @@ def load_config() -> Config:
     missing = [key for key in REQUIRED_KEYS if not getattr(cfg, key, None)]
     if missing:
         raise RuntimeError(
-            "Clés de configuration manquantes ou vides dans instance/config.py : "
+            "Missing or empty configuration keys in instance/config.py: "
             + ", ".join(missing)
         )
 

@@ -1,7 +1,7 @@
-# Exemple de configuration Caddy (HTTPS automatique via Let's Encrypt).
-# À adapter et copier vers /etc/caddy/Caddyfile sur le Raspberry Pi.
-# Caddy doit être le seul service exposé sur les ports 80/443 de votre box.
+# Example Caddy configuration (automatic HTTPS via Let's Encrypt).
+# Adapt and copy this file to /etc/caddy/Caddyfile on the Raspberry Pi.
+# Caddy must be the only service exposed on your router's ports 80/443.
 
-mc.votredomaine.tld {
+mc.yourdomain.tld {
     reverse_proxy 127.0.0.1:8000
 }

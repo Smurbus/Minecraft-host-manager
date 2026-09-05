@@ -1,4 +1,4 @@
-"""Point d'entrée WSGI pour la production (waitress / gunicorn)."""
+"""WSGI entry point for production (waitress / gunicorn)."""
 
 from app import create_app
 

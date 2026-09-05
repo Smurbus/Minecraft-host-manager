@@ -1,6 +1,6 @@
-"""Gestion des invitations à usage unique, inscription des utilisateurs, et
-administration des comptes (modification, suppression, consultation de
-l'activité) — tout accessible uniquement à l'administrateur (page /admin).
+"""Managing single-use invitations, user registration, and account
+administration (editing, deletion, activity review) — all accessible only to
+the administrator (/admin page).
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ def user_detail(user_id: int):
     db = current_app.db
     user = db.get_user_by_id(user_id)
     if user is None:
-        flash("Ce compte n'existe plus.", "error")
+        flash("This account no longer exists.", "error")
         return redirect(url_for("admin.dashboard"))
 
     activity = db.list_activity_for_user(user_id)
@@ -81,7 +81,7 @@ def update_user(user_id: int):
     db = current_app.db
     user = db.get_user_by_id(user_id)
     if user is None:
-        flash("Ce compte n'existe plus.", "error")
+        flash("This account no longer exists.", "error")
         return redirect(url_for("admin.dashboard"))
 
     new_username = request.form.get("username", "").strip()
@@ -91,13 +91,13 @@ def update_user(user_id: int):
         new_role = user.role
 
     if len(new_username) < MIN_USERNAME_LENGTH:
-        flash(f"Le nom d'utilisateur doit contenir au moins {MIN_USERNAME_LENGTH} caractères.", "error")
+        flash(f"Username must contain at least {MIN_USERNAME_LENGTH} characters.", "error")
         return redirect(url_for("admin.user_detail", user_id=user_id))
 
-    # Empêche de retirer le rôle admin au dernier administrateur restant :
-    # sans ça, plus personne ne pourrait accéder à la page d'administration.
+    # Prevents removing the admin role from the last remaining administrator:
+    # otherwise nobody would be able to access the administration page.
     if user.role == ROLE_ADMIN and new_role != ROLE_ADMIN and db.count_admins() <= 1:
-        flash("Impossible de retirer le rôle administrateur : c'est le dernier compte admin.", "error")
+        flash("Cannot remove the administrator role: this is the last admin account.", "error")
         return redirect(url_for("admin.user_detail", user_id=user_id))
 
     try:
@@ -106,13 +106,13 @@ def update_user(user_id: int):
         flash(str(exc), "error")
         return redirect(url_for("admin.user_detail", user_id=user_id))
 
-    # Si l'admin modifie son propre compte, la session doit refléter le
-    # changement immédiatement (nom affiché, rôle utilisé par les décorateurs).
+    # If the admin edits their own account, the session must reflect the
+    # change immediately (displayed name, role used by the decorators).
     if user_id == session.get("user_id"):
         session["username"] = new_username
         session["role"] = new_role
 
-    flash("Compte mis à jour.", "success")
+    flash("Account updated.", "success")
     return redirect(url_for("admin.user_detail", user_id=user_id))
 
 
@@ -122,19 +122,19 @@ def reset_password(user_id: int):
     db = current_app.db
     user = db.get_user_by_id(user_id)
     if user is None:
-        flash("Ce compte n'existe plus.", "error")
+        flash("This account no longer exists.", "error")
         return redirect(url_for("admin.dashboard"))
 
     password = request.form.get("password", "")
     confirm = request.form.get("confirm", "")
 
     if len(password) < MIN_PASSWORD_LENGTH:
-        flash(f"Le mot de passe doit contenir au moins {MIN_PASSWORD_LENGTH} caractères.", "error")
+        flash(f"Password must contain at least {MIN_PASSWORD_LENGTH} characters.", "error")
     elif password != confirm:
-        flash("Les mots de passe ne correspondent pas.", "error")
+        flash("Passwords do not match.", "error")
     else:
         db.set_password(user_id, generate_password_hash(password))
-        flash("Mot de passe réinitialisé.", "success")
+        flash("Password reset.", "success")
 
     return redirect(url_for("admin.user_detail", user_id=user_id))
 
@@ -145,19 +145,19 @@ def delete_user(user_id: int):
     db = current_app.db
     user = db.get_user_by_id(user_id)
     if user is None:
-        flash("Ce compte n'existe plus.", "error")
+        flash("This account no longer exists.", "error")
         return redirect(url_for("admin.dashboard"))
 
     if user_id == session.get("user_id"):
-        flash("Vous ne pouvez pas supprimer votre propre compte.", "error")
+        flash("You cannot delete your own account.", "error")
         return redirect(url_for("admin.user_detail", user_id=user_id))
 
     if user.role == ROLE_ADMIN and db.count_admins() <= 1:
-        flash("Impossible de supprimer le dernier compte administrateur.", "error")
+        flash("Cannot delete the last administrator account.", "error")
         return redirect(url_for("admin.user_detail", user_id=user_id))
 
     db.delete_user(user_id)
-    flash(f"Compte « {user.username} » supprimé.", "success")
+    flash(f"Account “{user.username}” deleted.", "success")
     return redirect(url_for("admin.dashboard"))
 
 
@@ -176,17 +176,17 @@ def register(token: str):
         confirm = request.form.get("confirm", "")
 
         if not username or len(username) < MIN_USERNAME_LENGTH:
-            error = f"Le nom d'utilisateur doit contenir au moins {MIN_USERNAME_LENGTH} caractères."
+            error = f"Username must contain at least {MIN_USERNAME_LENGTH} characters."
         elif db.username_exists(username):
-            error = "Ce nom d'utilisateur est déjà pris."
+            error = "This username is already taken."
         elif len(password) < MIN_PASSWORD_LENGTH:
-            error = f"Le mot de passe doit contenir au moins {MIN_PASSWORD_LENGTH} caractères."
+            error = f"Password must contain at least {MIN_PASSWORD_LENGTH} characters."
         elif password != confirm:
-            error = "Les mots de passe ne correspondent pas."
+            error = "Passwords do not match."
         else:
-            # Marque l'invitation comme utilisée de façon atomique avant de
-            # créer le compte : si deux requêtes arrivent en même temps sur
-            # le même lien, une seule pourra créer un compte.
+            # Marks the invitation as used atomically before creating the
+            # account: if two requests arrive at the same time on the same
+            # link, only one will be able to create an account.
             if not db.consume_invite(token, used_by=username):
                 return render_template("register.html", invalid=True), 410
 

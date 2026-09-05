@@ -1,10 +1,9 @@
-"""Petite couche de persistance SQLite : comptes utilisateurs et
-invitations à usage unique.
+"""Small SQLite persistence layer: user accounts and single-use
+invitations.
 
-Le fichier de base de données (``instance/app.db``) est généré
-automatiquement au premier lancement et n'est jamais commité (voir
-.gitignore). Il ne contient que des hachages de mots de passe (jamais de
-mot de passe en clair).
+The database file (``instance/app.db``) is generated automatically on first
+start and is never committed (see .gitignore). It contains only password
+hashes (never plain-text passwords).
 """
 
 from __future__ import annotations
@@ -136,13 +135,13 @@ class Database:
             )
 
     # ------------------------------------------------------------------
-    # Utilisateurs
+    # Users
     # ------------------------------------------------------------------
 
     def seed_admin_from_config(self, username: str, password_hash: str) -> None:
-        """Crée le compte admin initial depuis instance/config.py, une seule
-        fois (si la table users est vide). Permet de ne rien casser pour les
-        déploiements existants qui n'avaient qu'un seul compte en dur."""
+        """Creates the initial admin account from instance/config.py only
+        once (if the users table is empty). This preserves existing
+        deployments that previously had only one hard-coded account."""
         with self._connect() as conn:
             count = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
             if count > 0:
@@ -202,19 +201,19 @@ class Database:
             ).fetchone()["c"]
 
     def update_user(self, user_id: int, username: str, role: str) -> None:
-        """Renomme un compte et/ou change son rôle.
+        """Renames an account and/or changes its role.
 
-        Lève ValueError si le nouveau nom d'utilisateur est déjà pris par un
-        autre compte. Les garde-fous "dernier administrateur" sont du
-        ressort de l'appelant (app/admin.py), qui a accès à la session pour
-        savoir qui effectue l'opération.
+        Raises ValueError if the new username is already taken by another
+        account. The "last administrator" safeguards are the caller's
+        responsibility (app/admin.py), because it has access to the session
+        and knows who is performing the operation.
         """
         with self._connect() as conn:
             existing = conn.execute(
                 "SELECT id FROM users WHERE username = ? AND id != ?", (username, user_id)
             ).fetchone()
             if existing:
-                raise ValueError(f"Le nom d'utilisateur '{username}' est déjà pris.")
+                raise ValueError(f"The username '{username}' is already taken.")
             conn.execute(
                 "UPDATE users SET username = ?, role = ? WHERE id = ?",
                 (username, role, user_id),
@@ -231,7 +230,7 @@ class Database:
             conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
 
     # ------------------------------------------------------------------
-    # Journal d'activité (connexions + actions démarrer/éteindre)
+    # Activity log (logins + start/stop actions)
     # ------------------------------------------------------------------
 
     def log_activity(
@@ -299,11 +298,11 @@ class Database:
             return Invite(**dict(row)) if row else None
 
     def consume_invite(self, token: str, used_by: str) -> bool:
-        """Marque une invitation comme utilisée de façon atomique.
+        """Marks an invitation as used atomically.
 
-        Retourne False si le token n'existe pas, est expiré, ou a déjà été
-        utilisé entre-temps (protection contre une double soumission
-        concurrente du même lien).
+        Returns False if the token does not exist, has expired, or has
+        already been used in the meantime (protection against concurrent
+        double submission of the same link).
         """
         now = datetime.now(timezone.utc)
         with self._connect() as conn:

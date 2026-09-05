@@ -1,38 +1,38 @@
 # -----------------------------------------------------------------------
-# Copiez ce fichier en "config.py" (même dossier) puis renseignez vos
-# valeurs réelles. "instance/config.py" est ignoré par git : ne JAMAIS
-# committer vos vraies valeurs (MAC, IP, identifiants, chemin du script...).
+# Copy this file as "config.py" (same folder), then fill in your real
+# values. "instance/config.py" is ignored by git: NEVER commit your actual
+# values (MAC, IP, credentials, script path...).
 # -----------------------------------------------------------------------
 
-# --- PC hôte Minecraft ---
-HOST_MAC = "AA:BB:CC:DD:EE:FF"      # Adresse MAC de la carte réseau du PC (pour le Wake-on-LAN)
-HOST_IP = "192.168.1.50"            # IP locale (fixe / réservée par DHCP) du PC hôte
-BROADCAST_IP = "192.168.1.255"      # Adresse de broadcast du réseau local (ex : x.x.x.255)
+# --- Minecraft host PC ---
+HOST_MAC = "AA:BB:CC:DD:EE:FF"      # MAC address of the PC network card (for Wake-on-LAN)
+HOST_IP = "192.168.1.50"            # Local IP (static / DHCP reservation) of the host PC
+BROADCAST_IP = "192.168.1.255"      # Local network broadcast address (e.g. x.x.x.255)
 
-# --- Connexion SSH du Raspberry vers le PC hôte ---
-SSH_USER = "votre_utilisateur"
-SSH_KEY_PATH = "/home/pi/.ssh/id_ed25519_mchost"   # clé privée dédiée (voir README)
+# --- SSH connection from the Raspberry Pi to the host PC ---
+SSH_USER = "your_user"
+SSH_KEY_PATH = "/home/pi/.ssh/id_ed25519_mchost"   # dedicated private key (see README)
 SSH_PORT = 22
 
-# --- Serveur Minecraft ---
+# --- Minecraft server ---
 MC_PORT = 25565
-TMUX_SESSION_NAME = "mcserver"       # nom de la session tmux créée par l'appli sur le PC hôte
-START_SCRIPT_PATH = "/chemin/vers/votre/script_de_lancement.sh"
+TMUX_SESSION_NAME = "mcserver"       # name of the tmux session created by the app on the host PC
+START_SCRIPT_PATH = "/path/to/your/start_script.sh"
 
-# --- Authentification web ---
-# Ce compte sert uniquement à créer le tout premier compte administrateur en
-# base de données (au premier lancement). Les comptes suivants (y compris
-# d'autres admins) se créent ensuite via des liens d'invitation depuis la
-# page /admin - modifier ces valeurs après coup n'a aucun effet.
+# --- Web authentication ---
+# This account is used only to create the very first administrator account in
+# the database (on first start). Additional accounts (including other admins)
+# are then created via invitation links from the /admin page - changing these
+# values afterward has no effect.
 ADMIN_USERNAME = "admin"
-# Générez ce hash avec : python generate_password_hash.py
-ADMIN_PASSWORD_HASH = "pbkdf2:sha256:REMPLACEZ_MOI"
-# Générez une valeur aléatoire longue, par ex. avec : python -c "import secrets; print(secrets.token_hex(32))"
-SECRET_KEY = "REMPLACEZ_MOI_PAR_UNE_VALEUR_ALEATOIRE_LONGUE"
+# Generate this hash with: python generate_password_hash.py
+ADMIN_PASSWORD_HASH = "pbkdf2:sha256:REPLACE_ME"
+# Generate a long random value, for example with: python -c "import secrets; print(secrets.token_hex(32))"
+SECRET_KEY = "REPLACE_ME_WITH_A_LONG_RANDOM_VALUE"
 
-# --- Comportement ---
-AUTO_SHUTDOWN_MINUTES = 30           # extinction auto après N minutes sans aucun joueur
-# INVITE_LIFETIME_HOURS = 48         # durée de validité des liens d'invitation (48h par défaut)
+# --- Behavior ---
+AUTO_SHUTDOWN_MINUTES = 30           # automatic shutdown after N minutes with no players connected
+# INVITE_LIFETIME_HOURS = 48         # validity duration for invitation links (48h by default)
 
-# --- Sécurité (à activer une fois l'app servie en HTTPS derrière un reverse proxy) ---
+# --- Security (enable once the app is served over HTTPS behind a reverse proxy) ---
 # SESSION_COOKIE_SECURE = True

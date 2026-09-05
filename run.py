@@ -1,7 +1,7 @@
-"""Point d'entrée pour le développement local : ``python run.py``.
+"""Entry point for local development: ``python run.py``.
 
-Pour la production sur le Raspberry Pi, préférez ``wsgi.py`` servi par
-waitress ou gunicorn derrière un reverse proxy (voir README.md).
+For production on the Raspberry Pi, prefer ``wsgi.py`` served by waitress or
+gunicorn behind a reverse proxy (see README.md).
 """
 
 from app import create_app
@@ -9,6 +9,6 @@ from app import create_app
 app = create_app()
 
 if __name__ == "__main__":
-    # host="0.0.0.0" pour tester depuis un autre appareil du réseau local.
-    # debug=False : ce serveur de développement ne doit jamais être exposé tel quel sur Internet.
+    # host="0.0.0.0" to test from another device on the local network.
+    # debug=False: this development server must never be exposed as-is on the Internet.
     app.run(host="0.0.0.0", port=8000, debug=False)

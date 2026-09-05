@@ -1,4 +1,4 @@
-"""Application factory Flask."""
+"""Flask application factory."""
 
 from __future__ import annotations
 
@@ -30,15 +30,15 @@ def create_app() -> Flask:
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=cfg.SESSION_LIFETIME_HOURS)
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    # A activer (True) dès que l'app est servie en HTTPS derrière un reverse proxy.
+    # Enable this (True) as soon as the app is served over HTTPS behind a reverse proxy.
     app.config["SESSION_COOKIE_SECURE"] = getattr(cfg, "SESSION_COOKIE_SECURE", False)
 
     csrf.init_app(app)
 
     instance_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "instance")
     app.db = Database(instance_path)
-    # Crée le compte admin initial depuis instance/config.py, une seule fois
-    # (ne fait rien si des comptes existent déjà en base).
+    # Creates the initial admin account from instance/config.py only once
+    # (does nothing if accounts already exist in the database).
     app.db.seed_admin_from_config(cfg.ADMIN_USERNAME, cfg.ADMIN_PASSWORD_HASH)
 
     app.controller = ServerController(cfg)

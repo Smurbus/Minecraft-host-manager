@@ -19,21 +19,21 @@
   };
 
   const STATE_LABELS = {
-    pc_off: "PC éteint",
-    server_off: "PC allumé — serveur Minecraft éteint",
-    starting: "Démarrage en cours…",
-    stopping: "Extinction en cours…",
-    available: "Serveur disponible",
-    unknown: "Statut inconnu",
+    pc_off: "PC off",
+    server_off: "PC on — Minecraft server off",
+    starting: "Starting…",
+    stopping: "Shutdown in progress…",
+    available: "Server available",
+    unknown: "Unknown status",
   };
 
   const POLL_MS = 5000;
   let polling = null;
 
-  // --- Compte à rebours avant extinction automatique ---
-  // Resynchronisé à chaque réponse de /api/status (valeur faisant autorité,
-  // calculée côté serveur), puis décompté localement à la seconde entre deux
-  // rafraîchissements pour un affichage fluide.
+  // --- Countdown before automatic shutdown ---
+  // Resynchronized on each /api/status response (authoritative value,
+  // calculated server-side), then counted down locally every second between
+  // refreshes for a smooth display.
   let countdownRemaining = null;
   let countdownInterval = null;
 
@@ -48,7 +48,7 @@
       els.countdown.classList.add("hidden");
       return;
     }
-    els.countdown.textContent = `⏳ Extinction automatique dans ${formatCountdown(countdownRemaining)} sans joueur connecté`;
+    els.countdown.textContent = `⏳ Automatic shutdown in ${formatCountdown(countdownRemaining)} with no connected players`;
     els.countdown.classList.remove("hidden");
   }
 
@@ -99,7 +99,7 @@
       const names = status.players.names && status.players.names.length
         ? ` (${status.players.names.join(", ")})`
         : "";
-      els.players.textContent = `Joueurs connectés : ${status.players.online}/${status.players.max}${names}`;
+      els.players.textContent = `Connected players: ${status.players.online}/${status.players.max}${names}`;
       els.players.classList.remove("hidden");
     } else {
       els.players.textContent = "";
@@ -130,7 +130,7 @@
       if (data) renderStatus(data);
     } catch (err) {
       els.message.textContent = "";
-      els.error.textContent = "Impossible de contacter le serveur web du Raspberry.";
+      els.error.textContent = "Unable to contact the Raspberry Pi web server.";
       els.error.classList.remove("hidden");
     }
   }
@@ -149,7 +149,7 @@
 
   function openModal(online) {
     els.modalMessage.textContent =
-      `${online} joueur(s) actuellement connecté(s). Éteindre le serveur maintenant les déconnectera immédiatement. Confirmez-vous l'extinction ?`;
+      `${online} player(s) currently connected. Shutting down the server now will disconnect them immediately. Confirm shutdown?`;
     els.modal.classList.remove("hidden");
   }
 

@@ -1,10 +1,9 @@
-"""Logique métier : Wake-on-LAN, SSH vers le PC hôte, interrogation du
-serveur Minecraft, machine à états et surveillance d'inactivité.
+"""Business logic: Wake-on-LAN, SSH to the host PC, Minecraft server
+queries, state machine, and inactivity monitoring.
 
-Toute la classe ``ServerController`` est thread-safe : les actions
-(démarrage/arrêt) tournent dans des threads d'arrière-plan pour ne jamais
-bloquer une requête HTTP, pendant qu'un thread de surveillance dédié gère
-l'extinction automatique après inactivité.
+The entire ``ServerController`` class is thread-safe: actions (start/stop)
+run in background threads so an HTTP request is never blocked, while a
+dedicated monitoring thread handles automatic shutdown after inactivity.
 """
 
 from __future__ import annotations
@@ -30,10 +29,10 @@ class ActionState:
 
 
 class ServerState:
-    """États affichés côté interface web."""
+    """States displayed in the web interface."""
 
     PC_OFF = "pc_off"
-    SERVER_OFF = "server_off"        # PC allumé, serveur Minecraft non lancé
+    SERVER_OFF = "server_off"        # PC is on, Minecraft server not started
     STARTING = "starting"
     AVAILABLE = "available"
     STOPPING = "stopping"
@@ -51,7 +50,7 @@ class ServerController:
         self.cfg = cfg
         self._lock = threading.RLock()
         self._action_state = ActionState.IDLE
-        self._last_message = "En attente."
+        self._last_message = "Waiting."
         self._last_error: Optional[str] = None
         self._last_seen_with_players_at: Optional[datetime] = None
         self._status_cache = None
@@ -60,22 +59,22 @@ class ServerController:
         self._stop_monitor = threading.Event()
 
     # ------------------------------------------------------------------
-    # Primitives bas niveau
+    # Low-level primitives
     # ------------------------------------------------------------------
 
     def send_wol(self) -> None:
         mac = self.cfg.HOST_MAC.replace(":", "").replace("-", "")
         if len(mac) != 12:
-            raise ValueError(f"Adresse MAC invalide : {self.cfg.HOST_MAC!r}")
+            raise ValueError(f"Invalid MAC address: {self.cfg.HOST_MAC!r}")
         mac_bytes = bytes.fromhex(mac)
         packet = b"\xff" * 6 + mac_bytes * 16
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             sock.sendto(packet, (self.cfg.BROADCAST_IP, 9))
-        logger.info("Paquet magique WOL envoyé à %s via %s", self.cfg.HOST_MAC, self.cfg.BROADCAST_IP)
+        logger.info("WOL magic packet sent to %s via %s", self.cfg.HOST_MAC, self.cfg.BROADCAST_IP)
 
     def is_pc_reachable(self, timeout: float = 2.0) -> bool:
-        """Le PC est considéré comme allumé si son port SSH répond."""
+        """The PC is considered on if its SSH port responds."""
         try:
             with socket.create_connection((self.cfg.HOST_IP, self.cfg.SSH_PORT), timeout=timeout):
                 return True
@@ -104,11 +103,11 @@ class ServerController:
         return client
 
     def ssh_run(self, command: str, timeout: Optional[float] = None):
-        """Exécute une commande sur le PC hôte. Retourne (code, stdout, stderr).
+        """Runs a command on the host PC. Returns (code, stdout, stderr).
 
-        Peut lever une exception (connexion refusée, timeout...) : à charge
-        de l'appelant de l'attraper si l'échec est un cas attendu (ex :
-        commande de shutdown qui coupe la connexion en cours de route).
+        May raise an exception (connection refused, timeout...): it is up to
+        the caller to catch it if failure is an expected case (for example a
+        shutdown command that cuts the connection mid-way).
         """
         timeout = timeout or self.cfg.SSH_TIMEOUT
         client = self._ssh_client()
@@ -135,10 +134,10 @@ class ServerController:
             )
             return out.strip()
         except Exception as exc:  # noqa: BLE001
-            return f"(impossible de récupérer la sortie tmux : {exc})"
+            return f"(unable to retrieve tmux output: {exc})"
 
     # ------------------------------------------------------------------
-    # État exposé à l'interface web
+    # State exposed to the web interface
     # ------------------------------------------------------------------
 
     def get_status(self, force: bool = False) -> dict:
@@ -165,11 +164,10 @@ class ServerController:
             else:
                 state = ServerState.SERVER_OFF
 
-            # En dehors d'une action de démarrage/arrêt en cours, on tient à
-            # jour le suivi d'inactivité ici aussi (pas seulement dans la
-            # boucle de surveillance, qui ne tourne que toutes les
-            # MONITOR_INTERVAL_SECONDS) pour que le compte à rebours affiché
-            # soit précis à la seconde près dès qu'il n'y a plus personne.
+            # Outside an in-progress start/stop action, update the inactivity
+            # tracking here as well (not only in the monitoring loop, which
+            # runs only every MONITOR_INTERVAL_SECONDS) so the displayed
+            # countdown is accurate to the second as soon as nobody remains.
             auto_shutdown_seconds = None
             if action_state == ActionState.IDLE:
                 self._update_idle_tracking(mc)
@@ -199,8 +197,8 @@ class ServerController:
         with self._lock:
             self._last_message = message
             self._last_error = error
-            self._status_cache = None  # force le prochain appel à recalculer
-        logger.info("[controller] %s%s", message, f" (erreur: {error})" if error else "")
+            self._status_cache = None  # forces the next call to recalculate
+        logger.info("[controller] %s%s", message, f" (error: {error})" if error else "")
 
     def action_state(self) -> str:
         with self._lock:
@@ -210,19 +208,19 @@ class ServerController:
         return self.action_state() != ActionState.IDLE
 
     # ------------------------------------------------------------------
-    # Séquence de démarrage
+    # Startup sequence
     # ------------------------------------------------------------------
 
     def start(self) -> bool:
-        """Déclenche la séquence de démarrage en tâche de fond.
+        """Triggers the startup sequence in the background.
 
-        Retourne False si une action est déjà en cours.
+        Returns False if an action is already in progress.
         """
         with self._lock:
             if self._action_state != ActionState.IDLE:
                 return False
             self._action_state = ActionState.STARTING
-        self._set_progress("Démarrage demandé...")
+        self._set_progress("Startup requested...")
         thread = threading.Thread(target=self._start_sequence, daemon=True)
         thread.start()
         return True
@@ -230,11 +228,11 @@ class ServerController:
     def _start_sequence(self) -> None:
         try:
             if not self.is_pc_reachable():
-                self._set_progress("Réveil du PC (Wake-on-LAN)...")
+                self._set_progress("Waking the PC (Wake-on-LAN)...")
                 try:
                     self.send_wol()
                 except Exception as exc:  # noqa: BLE001
-                    self._finish_start(error=f"Échec de l'envoi du paquet WOL : {exc}")
+                    self._finish_start(error=f"Failed to send the WOL packet: {exc}")
                     return
 
                 deadline = time.monotonic() + self.cfg.PC_BOOT_TIMEOUT
@@ -245,29 +243,29 @@ class ServerController:
                 else:
                     self._finish_start(
                         error=(
-                            "Le PC ne répond pas après le réveil WOL. "
-                            "Vérifiez que le Wake-on-LAN est bien activé et persistant "
-                            "après extinction (BIOS + configuration réseau)."
+                            "The PC does not respond after the WOL wake-up. "
+                            "Make sure Wake-on-LAN is enabled and remains active "
+                            "after shutdown (BIOS + network configuration)."
                         )
                     )
                     return
 
-            self._set_progress("PC démarré, lancement du serveur Minecraft...")
+            self._set_progress("PC started, launching the Minecraft server...")
 
-            # Le PC vient peut-être de démarrer : le service SSH peut mettre
-            # quelques secondes de plus à être prêt que le simple port TCP.
+            # The PC may have just booted: the SSH service can take a few more
+            # seconds to become ready than the TCP port alone suggests.
             ssh_deadline = time.monotonic() + 60
             last_exc: Optional[Exception] = None
             while time.monotonic() < ssh_deadline:
                 try:
                     if self._tmux_session_exists():
-                        self._set_progress("Le serveur semble déjà lancé, poursuite du suivi...")
+                        self._set_progress("The server appears to be running already, continuing monitoring...")
                     else:
                         self.ssh_run(
                             f"tmux new-session -d -s {self.cfg.TMUX_SESSION_NAME} "
                             f"\"sudo -n bash {self.cfg.START_SCRIPT_PATH}\""
                         )
-                        self._set_progress("Script de lancement exécuté, attente du serveur Minecraft...")
+                        self._set_progress("Start script executed, waiting for the Minecraft server...")
                     last_exc = None
                     break
                 except Exception as exc:  # noqa: BLE001
@@ -275,42 +273,42 @@ class ServerController:
                     time.sleep(self.cfg.POLL_INTERVAL)
 
             if last_exc is not None:
-                self._finish_start(error=f"Connexion SSH impossible pour lancer le script : {last_exc}")
+                self._finish_start(error=f"SSH connection failed while trying to launch the script: {last_exc}")
                 return
 
             deadline = time.monotonic() + self.cfg.SERVER_START_TIMEOUT
             while time.monotonic() < deadline:
                 if self.query_minecraft() is not None:
-                    self._finish_start(message="Serveur Minecraft disponible !")
+                    self._finish_start(message="Minecraft server is available!")
                     return
                 time.sleep(self.cfg.POLL_INTERVAL)
 
             debug_output = self._capture_tmux_output()
             self._finish_start(
                 error=(
-                    "Le serveur Minecraft ne répond pas après le délai prévu. "
-                    "Vérifiez le script de lancement. Dernières lignes de la session tmux :\n"
+                    "The Minecraft server did not respond within the expected time. "
+                    "Check the start script. Latest lines from the tmux session:\n"
                     f"{debug_output}"
                 )
             )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Erreur inattendue pendant la séquence de démarrage")
-            self._finish_start(error=f"Erreur inattendue : {exc}")
+            logger.exception("Unexpected error during the startup sequence")
+            self._finish_start(error=f"Unexpected error: {exc}")
 
     def _finish_start(self, message: Optional[str] = None, error: Optional[str] = None) -> None:
         with self._lock:
             self._action_state = ActionState.IDLE
-        self._set_progress(message or "Démarrage terminé.", error=error)
+        self._set_progress(message or "Startup complete.", error=error)
 
     # ------------------------------------------------------------------
-    # Séquence d'arrêt
+    # Shutdown sequence
     # ------------------------------------------------------------------
 
     def stop(self, force: bool = False) -> dict:
-        """Déclenche la séquence d'arrêt en tâche de fond.
+        """Triggers the shutdown sequence in the background.
 
-        Si des joueurs sont connectés et que ``force`` vaut False, ne fait
-        rien et retourne {"confirm_required": True, "online": n}.
+        If players are connected and ``force`` is False, does nothing and
+        returns {"confirm_required": True, "online": n}.
         """
         with self._lock:
             if self._action_state != ActionState.IDLE:
@@ -322,7 +320,7 @@ class ServerController:
 
             self._action_state = ActionState.STOPPING
 
-        self._set_progress("Arrêt demandé...")
+        self._set_progress("Shutdown requested...")
         thread = threading.Thread(target=self._stop_sequence, daemon=True)
         thread.start()
         return {"started": True}
@@ -330,17 +328,17 @@ class ServerController:
     def _stop_sequence(self) -> None:
         try:
             if not self.is_pc_reachable():
-                self._finish_stop(message="Le PC est déjà éteint.")
+                self._finish_stop(message="The PC is already off.")
                 return
 
             if self._tmux_session_exists():
-                self._set_progress("Envoi de la commande d'arrêt au serveur Minecraft...")
+                self._set_progress("Sending the stop command to the Minecraft server...")
                 try:
                     self.ssh_run(
                         f"tmux send-keys -t {self.cfg.TMUX_SESSION_NAME} 'stop' Enter"
                     )
                 except Exception as exc:  # noqa: BLE001
-                    self._finish_stop(error=f"Impossible d'envoyer la commande d'arrêt : {exc}")
+                    self._finish_stop(error=f"Unable to send the stop command: {exc}")
                     return
 
                 deadline = time.monotonic() + self.cfg.SERVER_STOP_TIMEOUT
@@ -351,44 +349,44 @@ class ServerController:
                 else:
                     self._finish_stop(
                         error=(
-                            "Le serveur Minecraft ne s'est pas arrêté dans le délai prévu. "
-                            "Le PC n'a PAS été éteint par précaution (pour éviter de perdre "
-                            "la sauvegarde du monde). Réessayez ou vérifiez manuellement."
+                            "The Minecraft server did not stop within the expected time. "
+                            "The PC was NOT shut down as a safety measure (to avoid losing "
+                            "the world save). Try again or check manually."
                         )
                     )
                     return
             else:
-                self._set_progress("Aucune session de jeu active, extinction directe du PC...")
+                self._set_progress("No active game session, shutting down the PC directly...")
 
-            self._set_progress("Extinction du PC...")
+            self._set_progress("Shutting down the PC...")
             try:
                 self.ssh_run("sudo -n shutdown -h now", timeout=10)
             except Exception:
-                # La connexion est généralement coupée brutalement par l'extinction : normal.
+                # The connection is usually cut abruptly by the shutdown: normal.
                 pass
 
             deadline = time.monotonic() + self.cfg.PC_SHUTDOWN_TIMEOUT
             while time.monotonic() < deadline:
                 if not self.is_pc_reachable():
-                    self._finish_stop(message="PC éteint.")
+                    self._finish_stop(message="PC off.")
                     return
                 time.sleep(self.cfg.POLL_INTERVAL)
 
             self._finish_stop(
-                error="Le PC ne semble pas s'être éteint dans le délai prévu. Vérifiez manuellement."
+                error="The PC does not appear to have shut down within the expected time. Check manually."
             )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Erreur inattendue pendant la séquence d'arrêt")
-            self._finish_stop(error=f"Erreur inattendue : {exc}")
+            logger.exception("Unexpected error during the shutdown sequence")
+            self._finish_stop(error=f"Unexpected error: {exc}")
 
     def _finish_stop(self, message: Optional[str] = None, error: Optional[str] = None) -> None:
         with self._lock:
             self._action_state = ActionState.IDLE
             self._last_seen_with_players_at = None
-        self._set_progress(message or "Arrêt terminé.", error=error)
+        self._set_progress(message or "Shutdown complete.", error=error)
 
     # ------------------------------------------------------------------
-    # Surveillance auto-extinction (inactivité)
+    # Auto-shutdown monitor (inactivity)
     # ------------------------------------------------------------------
 
     def start_monitor(self) -> None:
@@ -396,7 +394,7 @@ class ServerController:
             return
         self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._monitor_thread.start()
-        logger.info("Surveillance auto-extinction démarrée (%s min d'inactivité).", self.cfg.AUTO_SHUTDOWN_MINUTES)
+        logger.info("Auto-shutdown monitor started (%s min of inactivity).", self.cfg.AUTO_SHUTDOWN_MINUTES)
 
     def stop_monitor(self) -> None:
         self._stop_monitor.set()
@@ -406,7 +404,7 @@ class ServerController:
             try:
                 self._monitor_tick()
             except Exception:  # noqa: BLE001
-                logger.exception("Erreur dans la boucle de surveillance auto-extinction")
+                logger.exception("Error in the auto-shutdown monitor loop")
             self._stop_monitor.wait(self.cfg.MONITOR_INTERVAL_SECONDS)
 
     def _monitor_tick(self) -> None:
@@ -428,19 +426,18 @@ class ServerController:
         idle_minutes = idle_seconds / 60.0
         if idle_minutes >= self.cfg.AUTO_SHUTDOWN_MINUTES:
             logger.info(
-                "Aucun joueur depuis %.1f minutes (seuil : %s min) : extinction automatique.",
+                "No players for %.1f minutes (threshold: %s min): automatic shutdown.",
                 idle_minutes,
                 self.cfg.AUTO_SHUTDOWN_MINUTES,
             )
             self.stop(force=True)
 
     def _update_idle_tracking(self, mc: Optional[MCStatus]) -> None:
-        """Met à jour l'horodatage "dernière fois avec des joueurs".
+        """Updates the timestamp for "last time players were present".
 
-        Doit être appelé avec ``self._lock`` déjà acquis. Ne déclenche
-        jamais l'extinction elle-même (réservé à ``_monitor_tick``) : sert
-        uniquement à alimenter le compte à rebours affiché côté web et le
-        suivi d'inactivité.
+        Must be called with ``self._lock`` already held. Never triggers the
+        shutdown itself (reserved for ``_monitor_tick``): it is used only to
+        feed the web-side displayed countdown and inactivity tracking.
         """
         now = datetime.now(timezone.utc)
         if mc is None:
@@ -451,11 +448,11 @@ class ServerController:
             self._last_seen_with_players_at = now
 
     def _idle_seconds_locked(self) -> Optional[float]:
-        """Nombre de secondes écoulées depuis le dernier joueur connu.
+        """Number of seconds elapsed since the last known player.
 
-        Doit être appelé avec ``self._lock`` déjà acquis. Retourne None si
-        aucun suivi n'est en cours (pas de serveur lancé, ou joueurs
-        actuellement connectés).
+        Must be called with ``self._lock`` already held. Returns None if no
+        tracking is active (server not running, or players currently
+        connected).
         """
         if self._last_seen_with_players_at is None:
             return None

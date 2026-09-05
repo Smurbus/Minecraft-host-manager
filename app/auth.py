@@ -1,9 +1,9 @@
-"""Authentification par session pour l'interface web.
+"""Session-based authentication for the web interface.
 
-Les comptes utilisateurs (admin + comptes créés via invitation) sont
-stockés dans la base SQLite (app/db.py). Un verrouillage temporaire est
-appliqué après plusieurs échecs de connexion depuis la même adresse IP,
-utile car l'application peut être exposée sur Internet.
+User accounts (admin + accounts created via invitation) are stored in the
+SQLite database (app/db.py). A temporary lockout is applied after several
+failed login attempts from the same IP address, which is useful because the
+application may be exposed on the Internet.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def admin_required(view):
         if not session.get("logged_in"):
             return redirect(url_for("auth.login", next=request.path))
         if session.get("role") != "admin":
-            return render_template("error.html", message="Accès réservé à l'administrateur."), 403
+            return render_template("error.html", message="Administrator access only."), 403
         return view(*args, **kwargs)
 
     return wrapped
@@ -83,7 +83,7 @@ def login():
     if request.method == "POST":
         ip = _client_ip()
         if _is_locked_out(ip, cfg["LOGIN_MAX_ATTEMPTS"], cfg["LOGIN_LOCKOUT_SECONDS"]):
-            error = "Trop de tentatives échouées. Réessayez plus tard."
+            error = "Too many failed attempts. Please try again later."
         else:
             username = request.form.get("username", "")
             password = request.form.get("password", "")
@@ -101,7 +101,7 @@ def login():
                 return redirect(next_url)
 
             _register_failure(ip)
-            error = "Identifiants incorrects."
+            error = "Incorrect credentials."
 
     return render_template("login.html", error=error)
 

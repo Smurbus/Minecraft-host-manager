@@ -1,29 +1,29 @@
-# Fichiers de configuration confidentiels (adresse MAC, IP, identifiants SSH,
-# chemin du script, mots de passe...) : NE JAMAIS committer.
+# Confidential configuration files (MAC address, IP, SSH credentials,
+# script path, passwords...): NEVER commit.
 instance/config.py
 
-# Base de données des comptes utilisateurs / invitations (générée au premier
-# lancement) : contient des hachages de mots de passe, ne jamais committer.
+# User accounts / invitations database (generated on first start): contains
+# password hashes, never commit.
 instance/app.db
 instance/*.db-journal
 
-# Environnements virtuels Python
+# Python virtual environments
 venv/
 .venv/
 env/
 
-# Fichiers Python compilés
+# Compiled Python files
 __pycache__/
 *.pyc
 
 # Logs
 *.log
 
-# Fichiers d'environnement
+# Environment files
 .env
 .env.*
 
-# Divers OS / éditeurs
+# Misc OS / editors
 .DS_Store
 Thumbs.db
 .vscode/

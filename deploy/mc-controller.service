@@ -1,16 +1,16 @@
 [Unit]
-Description=Contrôleur web du serveur Minecraft (Raspberry Pi)
+Description=Web controller for the Minecraft server (Raspberry Pi)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-# Adaptez User et les chemins ci-dessous à votre installation réelle
-# (utilisateur Linux + dossier où le dépôt a été cloné sur le Raspberry).
+# Adjust User and the paths below to match your real installation
+# (Linux user + folder where the repository was cloned on the Raspberry Pi).
 User=pi
 WorkingDirectory=/home/pi/mc-controller
 Environment=PATH=/home/pi/mc-controller/venv/bin
-# Écoute uniquement en local : le reverse proxy (Caddy/Nginx) gère le TLS et l'exposition externe.
+# Listens only locally: the reverse proxy (Caddy/Nginx) handles TLS and external exposure.
 ExecStart=/home/pi/mc-controller/venv/bin/waitress-serve --listen=127.0.0.1:8000 wsgi:app
 Restart=on-failure
 RestartSec=5

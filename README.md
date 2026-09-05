@@ -1,268 +1,203 @@
-# Contrôleur web pour serveur Minecraft (Raspberry Pi)
+# Web controller for a Minecraft server (Raspberry Pi)
 
-Application Flask hébergée sur un Raspberry Pi qui pilote à distance un PC
-hôte Ubuntu dédié à un serveur Minecraft :
+A Flask application hosted on a Raspberry Pi that remotely controls an Ubuntu host PC dedicated to a Minecraft server:
 
-- 🔋 **Réveil** du PC par Wake-on-LAN
-- 🚀 **Lancement** du serveur Minecraft (via SSH + `tmux`)
-- 👀 **Statut en direct** (PC éteint / serveur éteint / démarrage / disponible), avec liste des joueurs connectés
-- 🛑 **Extinction** du serveur puis du PC (réservée aux administrateurs), avec confirmation si des joueurs sont connectés
-- 😴 **Extinction automatique** après 30 minutes sans aucun joueur connecté, avec **compte à rebours affiché en temps réel** dans l'interface
-- 🔐 Accès protégé par une session web (login/mot de passe), pensé pour être exposé sur Internet derrière un reverse proxy HTTPS
-- 👥 **Comptes multi-utilisateurs** : un administrateur peut générer des liens d'invitation à usage unique pour que d'autres joueurs créent leur propre compte (droits limités à démarrer + consulter le statut)
+- 🔋 **Wake** the PC via Wake-on-LAN
+- 🚀 **Start** the Minecraft server (via SSH + `tmux`)
+- 👀 **Live status** (PC off / server off / starting / available), with a list of connected players
+- 🛑 **Shut down** the server and then the PC (administrators only), with confirmation if players are connected
+- 😴 **Automatic shutdown** after 30 minutes with no connected players, with a **real-time countdown shown** in the interface
+- 🔐 Access protected by a web session (username/password), designed to be exposed on the Internet behind an HTTPS reverse proxy
+- 👥 **Multi-user accounts**: an administrator can generate single-use invitation links so other players can create their own account (permissions limited to starting + viewing status)
 
 ## Architecture
 
 ```
 app/
-  __init__.py     -> application factory Flask
-  config.py       -> chargement de instance/config.py (+ valeurs par défaut)
-  controller.py   -> WOL, SSH (paramiko), requêtes serveur MC (mcstatus), machine à états, veille auto
-  db.py           -> base SQLite (comptes utilisateurs, invitations à usage unique, journal d'activité)
-  auth.py         -> login/logout, verrouillage anti brute-force, décorateurs login_required/admin_required
-  admin.py        -> administration : invitations, inscription, gestion des comptes (modifier/supprimer/activité)
-  routes.py       -> page d'accueil + API JSON (/api/status, /api/start, /api/stop)
-  templates/       -> login.html, index.html, admin.html, user_detail.html, register.html, error.html
-  static/          -> style.css, app.js (polling + confirmation)
+  __init__.py     -> Flask application factory
+  config.py       -> loading instance/config.py (+ default values)
+  controller.py   -> WOL, SSH (paramiko), MC server queries (mcstatus), state machine, auto-idle shutdown
+  db.py           -> SQLite database (user accounts, single-use invitations, activity log)
+  auth.py         -> login/logout, anti-brute-force lockout, login_required/admin_required decorators
+  admin.py        -> administration: invitations, registration, account management (edit/delete/activity)
+  routes.py       -> home page + JSON API (/api/status, /api/start, /api/stop)
+  templates/      -> login.html, index.html, admin.html, user_detail.html, register.html, error.html
+  static/         -> style.css, app.js (polling + confirmation)
 instance/
-  config.example.py -> modèle à copier en config.py (jamais commité, voir .gitignore)
-  app.db             -> base SQLite générée automatiquement au 1er lancement (jamais commitée)
+  config.example.py -> template to copy as config.py (never committed, see .gitignore)
+  app.db             -> SQLite database generated automatically on first start (never committed)
 deploy/
-  mc-controller.service -> unité systemd (production, via waitress)
-  Caddyfile.example      -> reverse proxy HTTPS automatique
-  host-sudoers.example   -> règles sudo NOPASSWD à installer sur le PC hôte
-run.py / wsgi.py  -> points d'entrée (dev / prod)
-generate_password_hash.py -> génère ADMIN_PASSWORD_HASH et SECRET_KEY
+  mc-controller.service -> systemd unit (production, via waitress)
+  Caddyfile.example      -> automatic HTTPS reverse proxy
+  host-sudoers.example   -> sudo NOPASSWD rules to install on the host PC
+run.py / wsgi.py  -> entry points (dev / prod)
+generate_password_hash.py -> generates ADMIN_PASSWORD_HASH and SECRET_KEY
 ```
 
-Le **PC hôte** (Ubuntu) n'a besoin d'aucune modification logicielle
-particulière autre que : `tmux` installé, Wake-on-LAN actif, et une règle
-`sudo` sans mot de passe limitée à deux commandes précises (voir plus bas).
-C'est le Raspberry qui, via SSH, encapsule votre script existant dans une
-session `tmux` nommée (par défaut `mcserver`), ce qui permet ensuite d'y
-envoyer la commande `stop` proprement.
+The **host PC** (Ubuntu) does not require any special software changes other than: `tmux` installed, Wake-on-LAN enabled, and a passwordless `sudo` rule limited to two exact commands (see below).
+The Raspberry Pi uses SSH to wrap your existing start script in a named `tmux` session (default: `mcserver`), which then allows it to send the `stop` command cleanly.
 
-## 1. Préparation du PC hôte (Ubuntu)
+## 1. Preparing the host PC (Ubuntu)
 
-1. Vérifiez que le Wake-on-LAN persiste après extinction (souvent réinitialisé au boot) :
+1. Make sure Wake-on-LAN persists after shutdown (it is often reset on boot):
    ```bash
    sudo apt install ethtool
-   ip a   # repérez le nom de l'interface, ex: enp3s0
+   ip a   # find the interface name, e.g. enp3s0
    sudo ethtool enp3s0 | grep Wake-on
    ```
-   Si besoin, rendez-le permanent avec un service systemd ou un fichier
-   NetworkManager dispatcher (`sudo nmcli connection modify "Nom connexion" 802-3-ethernet.wake-on-lan magic`).
+   If needed, make it persistent with a systemd service or a NetworkManager dispatcher file (`sudo nmcli connection modify "Connection name" 802-3-ethernet.wake-on-lan magic`).
 
-2. Installez `tmux` :
+2. Install `tmux`:
    ```bash
    sudo apt install tmux
    ```
 
-3. Créez (ou réutilisez) un utilisateur dédié, et notez le **chemin absolu**
-   de votre script de lancement (`START_SCRIPT_PATH`).
+3. Create (or reuse) a dedicated user account, and note the **absolute path** to your start script (`START_SCRIPT_PATH`).
 
-4. Autorisez le lancement du script et l'extinction **sans mot de passe**,
-   mais uniquement pour ces deux commandes précises (jamais `NOPASSWD: ALL`) :
+4. Allow starting the script and shutting down **without a password**, but only for these two exact commands (never `NOPASSWD: ALL`):
    ```bash
-   which bash      # vérifiez le chemin exact (souvent /usr/bin/bash)
-   which shutdown  # vérifiez le chemin exact (souvent /usr/sbin/shutdown)
+   which bash      # verify the exact path (usually /usr/bin/bash)
+   which shutdown  # verify the exact path (usually /usr/sbin/shutdown)
    sudo visudo -f /etc/sudoers.d/mc-controller
    ```
-   Collez-y (adapté depuis `deploy/host-sudoers.example`) :
+   Paste this in (adapted from `deploy/host-sudoers.example`):
    ```
-   votre_utilisateur ALL=(ALL) NOPASSWD: /usr/bin/bash /chemin/vers/script.sh
-   votre_utilisateur ALL=(ALL) NOPASSWD: /usr/sbin/shutdown -h now
+   your_user ALL=(ALL) NOPASSWD: /usr/bin/bash /path/to/script.sh
+   your_user ALL=(ALL) NOPASSWD: /usr/sbin/shutdown -h now
    ```
 
-5. Autorisez la connexion SSH depuis le Raspberry (voir étape 3 ci-dessous).
+5. Allow SSH access from the Raspberry Pi (see step 3 below).
 
-## 2. Installation sur le Raspberry Pi
+## 2. Installing on the Raspberry Pi
 
 ```bash
-git clone <votre_repo> mc-controller
+git clone <your_repo> mc-controller
 cd mc-controller
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 3. Authentification SSH Raspberry → PC hôte (sans mot de passe)
+## 3. SSH authentication Raspberry Pi → host PC (passwordless)
 
-Sur le **Raspberry** :
+On the **Raspberry Pi**:
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_mchost -N ""
-ssh-copy-id -i ~/.ssh/id_ed25519_mchost.pub votre_utilisateur@IP_DU_PC_HOTE
+ssh-copy-id -i ~/.ssh/id_ed25519_mchost.pub your_user@HOST_PC_IP
 ```
-Testez que la connexion fonctionne **sans mot de passe** :
+Test that the connection works **without a password**:
 ```bash
-ssh -i ~/.ssh/id_ed25519_mchost votre_utilisateur@IP_DU_PC_HOTE
+ssh -i ~/.ssh/id_ed25519_mchost your_user@HOST_PC_IP
 ```
-Ce chemin de clé (`~/.ssh/id_ed25519_mchost`) est celui à renseigner dans
-`SSH_KEY_PATH`.
+This key path (`~/.ssh/id_ed25519_mchost`) is the value to put in `SSH_KEY_PATH`.
 
-## 4. Configuration de l'application
+## 4. Application configuration
 
 ```bash
 cp instance/config.example.py instance/config.py
-python generate_password_hash.py   # affiche ADMIN_PASSWORD_HASH et SECRET_KEY à coller
+python generate_password_hash.py   # prints ADMIN_PASSWORD_HASH and SECRET_KEY to paste in
 ```
-Éditez `instance/config.py` et renseignez au minimum :
+Edit `instance/config.py` and fill in at least:
 `HOST_MAC`, `HOST_IP`, `BROADCAST_IP`, `SSH_USER`, `SSH_KEY_PATH`,
 `START_SCRIPT_PATH`, `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, `SECRET_KEY`.
 
-Ce fichier contient toutes vos données confidentielles : il est listé dans
-`.gitignore` et ne doit **jamais** être poussé sur GitHub.
+This file contains all your confidential data: it is listed in `.gitignore` and must **never** be pushed to GitHub.
 
-## 5. Test en local
+## 5. Local test
 
 ```bash
 python run.py
 ```
-Ouvrez `http://IP_DU_RASPBERRY:8000` depuis un navigateur du réseau local,
-connectez-vous, puis testez démarrage/arrêt.
+Open `http://RASPBERRY_IP:8000` in a browser on your local network, log in, then test start/stop.
 
-## 6. Comptes utilisateurs et invitations
+## 6. User accounts and invitations
 
-Au premier lancement, l'application crée automatiquement un compte
-administrateur dans une base SQLite (`instance/app.db`, générée et ignorée
-par git) à partir de `ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` définis dans
-`instance/config.py`. Modifier ces valeurs par la suite n'a plus d'effet :
-la base de données est désormais la source de vérité.
+On first start, the application automatically creates an administrator account in a SQLite database (`instance/app.db`, generated and ignored by git) from `ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` defined in `instance/config.py`. Changing those values later has no effect: the database is now the source of truth.
 
-Pour inviter d'autres personnes à créer leur propre compte :
+To invite other people to create their own account:
 
-1. Connectez-vous avec le compte administrateur.
-2. Cliquez sur **Administration** en haut du tableau de bord.
-3. Choisissez le rôle du nouveau compte puis cliquez sur **Générer un lien
-   d'invitation** :
-   - **Utilisateur** : peut démarrer le PC + le serveur et consulter le statut.
-   - **Administrateur** : accès complet, y compris éteindre le serveur et
-     générer de nouvelles invitations.
-4. Copiez le lien affiché (`https://.../register/<token>`) et envoyez-le à
-   la personne concernée. Le lien est valable 48h (`INVITE_LIFETIME_HOURS`)
-   et devient invalide dès qu'il a été utilisé une fois.
-5. La personne ouvre le lien, choisit un nom d'utilisateur et un mot de
-   passe (8 caractères minimum), puis peut se connecter normalement.
+1. Log in with the administrator account.
+2. Click **Administration** at the top of the dashboard.
+3. Choose the role for the new account, then click **Generate invitation link**:
+   - **User**: can start the PC + server and view status.
+   - **Administrator**: full access, including shutting down the server and generating new invitations.
+4. Copy the displayed link (`https://.../register/<token>`) and send it to the relevant person. The link is valid for 48 hours (`INVITE_LIFETIME_HOURS`) and becomes invalid as soon as it has been used once.
+5. The person opens the link, chooses a username and password (minimum 8 characters), then can log in normally.
 
-Depuis la page **Administration**, chaque compte listé dispose d'un lien
-**Gérer** menant à sa fiche détaillée, où l'administrateur peut :
+From the **Administration** page, each listed account has a **Manage** link to its detailed page, where the administrator can:
 
-- **Modifier** le nom d'utilisateur et/ou le rôle du compte.
-- **Réinitialiser** son mot de passe (sans avoir besoin de connaître l'ancien).
-- **Supprimer** définitivement le compte.
-- **Consulter son activité** : historique des connexions (date/heure + IP)
-  et des actions démarrer/éteindre déclenchées par ce compte.
+- **Edit** the account username and/or role.
+- **Reset** its password (without needing to know the old one).
+- **Delete** the account permanently.
+- **View activity**: login history (date/time + IP) and the start/shutdown actions triggered by that account.
 
-Quelques garde-fous empêchent de se retrouver bloqué hors de
-l'administration :
-- Impossible de supprimer son propre compte.
-- Impossible de supprimer ou de rétrograder le **dernier** compte
-  administrateur restant (créez d'abord un second admin si nécessaire).
+A few safeguards prevent you from locking yourself out of administration:
+- You cannot delete your own account.
+- You cannot delete or demote the **last** remaining administrator account (create a second admin first if needed).
 
-Pour réinitialiser entièrement les comptes (par exemple en cas de test),
-arrêtez le service et supprimez `instance/app.db` : il sera recréé avec un
-nouveau compte admin basé sur `instance/config.py` au prochain démarrage.
+To fully reset accounts (for example during testing), stop the service and delete `instance/app.db`: it will be recreated with a new admin account based on `instance/config.py` on the next start.
 
-## 7. Déploiement en production (systemd + waitress)
+## 7. Production deployment (systemd + waitress)
 
 ```bash
 sudo cp deploy/mc-controller.service /etc/systemd/system/
-sudo nano /etc/systemd/system/mc-controller.service   # adaptez les chemins/utilisateur
+sudo nano /etc/systemd/system/mc-controller.service   # adjust paths/user
 sudo systemctl daemon-reload
 sudo systemctl enable --now mc-controller
 sudo systemctl status mc-controller
 ```
 
-## 8. Exposition sur Internet (accès distant demandé)
+## 8. Exposing it on the Internet (remote access requested)
 
-Ne forwardez **jamais** directement le port de l'application vers Internet.
-Utilisez un reverse proxy en HTTPS sur le Raspberry (ex. Caddy, qui gère
-automatiquement les certificats Let's Encrypt) :
+**Never** forward the application port directly to the Internet. Use an HTTPS reverse proxy on the Raspberry Pi (for example Caddy, which automatically handles Let's Encrypt certificates):
 
 ```bash
-sudo apt install caddy   # ou suivez la doc officielle Caddy pour Raspberry Pi OS
+sudo apt install caddy   # or follow the official Caddy docs for Raspberry Pi OS
 sudo cp deploy/Caddyfile.example /etc/caddy/Caddyfile
-sudo nano /etc/caddy/Caddyfile   # remplacez par votre nom de domaine
+sudo nano /etc/caddy/Caddyfile   # replace with your domain name
 sudo systemctl restart caddy
 ```
 
-Sur votre box/routeur, ne forwardez que les ports **80** (validation ACME)
-et **443** (HTTPS) vers le Raspberry — jamais le port 8000 de l'app Flask.
+On your router, forward only ports **80** (ACME validation) and **443** (HTTPS) to the Raspberry Pi — never the Flask app's port 8000.
 
-Une fois le HTTPS actif, activez le cookie de session sécurisé dans
-`instance/config.py` :
+Once HTTPS is active, enable the secure session cookie in `instance/config.py`:
 ```python
 SESSION_COOKIE_SECURE = True
 ```
 
-Il vous faudra aussi un nom de domaine (ou un service de DNS dynamique,
-type DuckDNS/No-IP, si votre IP publique n'est pas fixe) pointant vers
-votre box, avec le port 443 redirigé vers le Raspberry.
+You will also need a domain name (or a dynamic DNS service such as DuckDNS/No-IP if your public IP is not static) pointing to your router, with port 443 forwarded to the Raspberry Pi.
 
-## Fonctionnement des états
+## How the states work
 
-| État affiché         | Signification                                            |
-|-----------------------|-----------------------------------------------------------|
-| PC éteint             | Le PC hôte ne répond pas (port SSH injoignable)           |
-| Serveur éteint        | PC allumé, mais le serveur Minecraft ne répond pas         |
-| Démarrage en cours    | WOL envoyé et/ou script de lancement en cours d'exécution |
-| Extinction en cours   | Arrêt du serveur puis du PC en cours                       |
-| Serveur disponible    | Le serveur Minecraft répond (liste des joueurs affichée)   |
+| Displayed state      | Meaning                                                   |
+|----------------------|-----------------------------------------------------------|
+| PC off               | The host PC does not respond (SSH port unreachable)       |
+| Server off           | PC is on, but the Minecraft server is not responding      |
+| Starting             | WOL sent and/or start script currently running            |
+| Shutdown in progress | Server stop then PC shutdown currently running            |
+| Server available     | The Minecraft server is responding (player list shown)    |
 
-Le bouton **Démarrer** envoie le WOL (si nécessaire), attend que le PC
-réponde, crée une session `tmux` nommée qui exécute
-`sudo bash START_SCRIPT_PATH`, puis attend que le serveur Minecraft
-réponde.
+The **Start** button sends WOL (if needed), waits for the PC to respond, creates a named `tmux` session running `sudo bash START_SCRIPT_PATH`, then waits for the Minecraft server to respond.
 
-Le bouton **Éteindre** vérifie d'abord s'il y a des joueurs connectés :
-si oui, une boîte de dialogue de confirmation s'affiche avant de
-poursuivre. Une fois confirmé (ou s'il n'y a personne), l'app envoie la
-commande `stop` dans la session `tmux`, attend l'arrêt effectif du
-serveur, puis exécute `sudo shutdown -h now` sur le PC hôte. **Par
-sécurité, si le serveur ne s'arrête pas proprement dans le délai imparti,
-le PC n'est pas éteint** (pour éviter de perdre la sauvegarde du monde).
+The **Shut down** button first checks whether players are connected: if so, a confirmation dialog appears before proceeding. Once confirmed (or if nobody is connected), the app sends the `stop` command to the `tmux` session, waits for the server to stop, then runs `sudo shutdown -h now` on the host PC. **For safety, if the server does not stop cleanly within the allotted time, the PC is not shut down** (to avoid losing the world save).
 
-La surveillance d'inactivité tourne en tâche de fond (toutes les 60
-secondes) : dès que le nombre de joueurs connectés tombe à 0 pendant
-`AUTO_SHUTDOWN_MINUTES` (30 par défaut) minutes consécutives, la séquence
-d'extinction est déclenchée automatiquement, exactement comme un clic sur
-le bouton « Éteindre » sans confirmation nécessaire.
+The inactivity monitor runs in the background (every 60 seconds): as soon as the number of connected players drops to 0 for `AUTO_SHUTDOWN_MINUTES` (30 by default) consecutive minutes, the shutdown sequence is triggered automatically, exactly like clicking the **Shut down** button without requiring confirmation.
 
-Dès qu'il n'y a plus aucun joueur connecté (et que le serveur est
-disponible), un compte à rebours « ⏳ Extinction automatique dans MM:SS »
-s'affiche sur le tableau de bord, visible par tous les comptes (admin ou
-non). La valeur est calculée côté serveur à chaque appel de `/api/status`
-(précise à la seconde près, indépendamment du cycle de surveillance de 60s)
-et décomptée localement dans le navigateur entre deux rafraîchissements.
-Le compteur disparaît dès qu'un joueur se reconnecte.
+As soon as no players are connected anymore (and the server is available), a countdown reading **"⏳ Automatic shutdown in MM:SS"** appears on the dashboard, visible to all accounts (admin or not). The value is calculated server-side on each `/api/status` call (accurate to the second, independently of the 60-second monitoring cycle) and counted down locally in the browser between refreshes. The countdown disappears as soon as a player reconnects.
 
-## Sécurité
+## Security
 
-- Session Flask signée par `SECRET_KEY`, cookie `HttpOnly` + `SameSite=Lax`
-  (et `Secure` une fois en HTTPS).
-- Comptes utilisateurs stockés en base SQLite, mots de passe hachés (PBKDF2
-  via Werkzeug), jamais en clair. Le bouton **Éteindre** n'est visible et
-  actif que pour les comptes administrateur (`/api/stop` renvoie 403 sinon).
-- Invitations à usage unique (token aléatoire 256 bits, expiration 48h),
-  consommées de façon atomique pour empêcher toute réutilisation, y compris
-  en cas de double soumission simultanée.
-- Verrouillage temporaire après plusieurs échecs de connexion consécutifs
-  depuis la même IP (`LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_SECONDS`).
-- Protection CSRF (Flask-WTF) sur toutes les requêtes qui modifient l'état
-  (start/stop/logout).
-- Sur le PC hôte, `sudo` sans mot de passe est restreint à deux commandes
-  exactes (jamais `ALL`).
-- Toutes les données sensibles (MAC, IP, identifiants, chemin du script,
-  clé SSH, secrets) restent dans `instance/config.py`, exclu de git.
+- Flask session signed by `SECRET_KEY`, `HttpOnly` + `SameSite=Lax` cookie (and `Secure` once HTTPS is enabled).
+- User accounts stored in SQLite, passwords hashed (PBKDF2 via Werkzeug), never in plain text. The **Shut down** button is visible and enabled only for administrator accounts (`/api/stop` returns 403 otherwise).
+- Single-use invitations (random 256-bit token, 48-hour expiry), consumed atomically to prevent any reuse, including in case of simultaneous double submission.
+- Temporary lockout after multiple consecutive failed login attempts from the same IP (`LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_SECONDS`).
+- CSRF protection (Flask-WTF) on all requests that change state (start/stop/logout).
+- On the host PC, passwordless `sudo` is restricted to two exact commands (never `ALL`).
+- All sensitive data (MAC, IP, credentials, script path, SSH key, secrets) stays in `instance/config.py`, excluded from git.
 
-## Dépannage
+## Troubleshooting
 
-- **"Fichier instance/config.py introuvable"** : suivez l'étape 4.
-- **Le démarrage échoue à l'étape SSH** : vérifiez `SSH_KEY_PATH`,
-  `SSH_USER`, et que la connexion `ssh -i ... user@host` fonctionne sans
-  mot de passe ni interaction.
-- **Le script se lance mais le serveur ne répond jamais** : le message
-  d'erreur affiché contient les dernières lignes de la session `tmux`
-  (équivalent de `tmux capture-pane`) pour diagnostiquer.
-- **Le PC ne s'éteint pas** : vérifiez la règle sudoers pour `shutdown`
-  et que le chemin de la commande correspond exactement (`which shutdown`).
+- **"instance/config.py file not found"**: follow step 4.
+- **Startup fails at the SSH step**: check `SSH_KEY_PATH`, `SSH_USER`, and that `ssh -i ... user@host` works without a password or interaction.
+- **The script starts but the server never responds**: the displayed error message includes the latest lines from the `tmux` session (equivalent to `tmux capture-pane`) for diagnosis.
+- **The PC does not shut down**: check the sudoers rule for `shutdown` and make sure the command path matches exactly (`which shutdown`).

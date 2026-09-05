@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Contrôleur serveur Minecraft{% endblock %}
+{% block title %}Minecraft Server Controller{% endblock %}
 {% block content %}
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
 <div class="dashboard">
   <header class="topbar">
-    <h1>🎮 Serveur Minecraft</h1>
+    <h1>🎮 Minecraft Server</h1>
     <div class="topbar-right">
       <span class="muted">{{ username }}{% if is_admin %} (admin){% endif %}</span>
       {% if is_admin %}
@@ -13,7 +13,7 @@
       {% endif %}
       <form method="post" action="{{ url_for('auth.logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="link-button">Déconnexion</button>
+        <button type="submit" class="link-button">Log out</button>
       </form>
     </div>
   </header>
@@ -21,7 +21,7 @@
   <section class="status-card" id="status-card" data-state="unknown">
     <div class="status-icon" id="status-icon">⏳</div>
     <div class="status-text">
-      <h2 id="status-label">Chargement du statut…</h2>
+      <h2 id="status-label">Loading status…</h2>
       <p id="status-players" class="muted"></p>
       <p id="status-countdown" class="countdown hidden"></p>
       <p id="status-message" class="muted"></p>
@@ -30,22 +30,22 @@
   </section>
 
   <section class="actions">
-    <button id="btn-start" class="btn btn-start" disabled>▶️ Démarrer le PC + le serveur</button>
+    <button id="btn-start" class="btn btn-start" disabled>▶️ Start the PC + server</button>
     {% if is_admin %}
-      <button id="btn-stop" class="btn btn-stop" disabled>⏹️ Éteindre le serveur + le PC</button>
+      <button id="btn-stop" class="btn btn-stop" disabled>⏹️ Shut down the server + PC</button>
     {% endif %}
   </section>
 
-  <p class="hint">Le statut se met à jour automatiquement toutes les 5 secondes. L'extinction automatique intervient après 30 minutes sans aucun joueur connecté.{% if not is_admin %} Seul un administrateur peut éteindre le serveur manuellement.{% endif %}</p>
+  <p class="hint">Status updates automatically every 5 seconds. Automatic shutdown occurs after 30 minutes with no connected players.{% if not is_admin %} Only an administrator can shut down the server manually.{% endif %}</p>
 </div>
 
 <div id="confirm-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
   <div class="modal-box">
-    <h3 id="confirm-title">⚠️ Des joueurs sont connectés</h3>
+    <h3 id="confirm-title">⚠️ Players are connected</h3>
     <p id="confirm-message"></p>
     <div class="modal-actions">
-      <button id="confirm-cancel" class="btn btn-secondary">Annuler</button>
-      <button id="confirm-ok" class="btn btn-stop">Éteindre quand même</button>
+      <button id="confirm-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="confirm-ok" class="btn btn-stop">Shut down anyway</button>
     </div>
   </div>
 </div>

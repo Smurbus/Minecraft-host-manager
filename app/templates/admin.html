@@ -1,24 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Administration – Contrôleur Minecraft{% endblock %}
+{% block title %}Administration – Minecraft Controller{% endblock %}
 {% block content %}
 <div class="dashboard">
   <header class="topbar">
     <h1>🛠️ Administration</h1>
-    <a href="{{ url_for('main.index') }}" class="link-button">← Retour au tableau de bord</a>
+    <a href="{{ url_for('main.index') }}" class="link-button">← Back to dashboard</a>
   </header>
 
   <section class="admin-section">
-    <h2>Créer une invitation</h2>
+    <h2>Create an invitation</h2>
     <form method="post" action="{{ url_for('admin.create_invite') }}" class="inline-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="role">Rôle du nouveau compte</label>
+      <label for="role">Role for the new account</label>
       <select id="role" name="role">
-        <option value="user" selected>Utilisateur (démarrer + consulter le statut)</option>
-        <option value="admin">Administrateur (accès complet)</option>
+        <option value="user" selected>User (start + view status)</option>
+        <option value="admin">Administrator (full access)</option>
       </select>
-      <button type="submit" class="btn btn-start">Générer un lien d'invitation</button>
+      <button type="submit" class="btn btn-start">Generate invitation link</button>
     </form>
-    <p class="hint">Le lien généré est valable {{ invite_lifetime_hours if invite_lifetime_hours else 48 }} heures et ne peut être utilisé qu'une seule fois.</p>
+    <p class="hint">The generated link is valid for {{ invite_lifetime_hours if invite_lifetime_hours else 48 }} hours and can only be used once.</p>
   </section>
 
   <section class="admin-section">
@@ -27,11 +27,11 @@
     <table class="admin-table">
       <thead>
         <tr>
-          <th>Rôle</th>
-          <th>Lien</th>
-          <th>Créée le</th>
-          <th>Expire le</th>
-          <th>Statut</th>
+          <th>Role</th>
+          <th>Link</th>
+          <th>Created on</th>
+          <th>Expires on</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -40,19 +40,19 @@
           <td>{{ invite.role }}</td>
           <td>
             {% if invite.used_at %}
-              <span class="muted">utilisé par {{ invite.used_by }}</span>
+              <span class="muted">used by {{ invite.used_by }}</span>
             {% elif invite.is_valid() %}
               <code class="invite-link">{{ url_for('admin.register', token=invite.token, _external=True) }}</code>
             {% else %}
-              <span class="muted">expiré</span>
+              <span class="muted">expired</span>
             {% endif %}
           </td>
           <td>{{ invite.created_at[:16].replace('T', ' ') }}</td>
           <td>{{ invite.expires_at[:16].replace('T', ' ') }}</td>
           <td>
-            {% if invite.used_at %}✅ utilisée
+            {% if invite.used_at %}✅ used
             {% elif invite.is_valid() %}🟢 active
-            {% else %}⚪ expirée
+            {% else %}⚪ expired
             {% endif %}
           </td>
         </tr>
@@ -60,15 +60,15 @@
       </tbody>
     </table>
     {% else %}
-    <p class="muted">Aucune invitation créée pour l'instant.</p>
+    <p class="muted">No invitations created yet.</p>
     {% endif %}
   </section>
 
   <section class="admin-section">
-    <h2>Comptes existants</h2>
+    <h2>Existing accounts</h2>
     <table class="admin-table">
       <thead>
-        <tr><th>Utilisateur</th><th>Rôle</th><th>Créé le</th><th></th></tr>
+        <tr><th>Username</th><th>Role</th><th>Created on</th><th></th></tr>
       </thead>
       <tbody>
         {% for user in users %}
@@ -76,7 +76,7 @@
           <td>{{ user.username }}</td>
           <td>{{ user.role }}</td>
           <td>{{ user.created_at[:16].replace('T', ' ') }}</td>
-          <td><a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="link-button">Gérer</a></td>
+          <td><a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="link-button">Manage</a></td>
         </tr>
         {% endfor %}
       </tbody>

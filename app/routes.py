@@ -1,5 +1,5 @@
-"""Routes principales : page d'accueil et API JSON utilisée par le
-JavaScript côté client (statut, démarrage, arrêt)."""
+"""Main routes: home page and JSON API used by the client-side
+JavaScript (status, start, stop)."""
 
 from __future__ import annotations
 

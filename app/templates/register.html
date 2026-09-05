@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Créer un compte – Contrôleur Minecraft{% endblock %}
+{% block title %}Create an account – Minecraft Controller{% endblock %}
 {% block content %}
 <div class="login-card">
-  <h1>🎮 Créer votre compte</h1>
+  <h1>🎮 Create your account</h1>
 
   {% if invalid %}
     <p class="alert alert-error">
-      Ce lien d'invitation est invalide, expiré ou a déjà été utilisé.
-      Demandez un nouveau lien à l'administrateur.
+      This invitation link is invalid, expired, or has already been used.
+      Ask the administrator for a new link.
     </p>
   {% else %}
     <form method="post">
@@ -17,16 +17,16 @@
         <p class="alert alert-error">{{ error }}</p>
       {% endif %}
 
-      <label for="username">Nom d'utilisateur</label>
+      <label for="username">Username</label>
       <input type="text" id="username" name="username" minlength="3" required autofocus>
 
-      <label for="password">Mot de passe (8 caractères minimum)</label>
+      <label for="password">Password (minimum 8 characters)</label>
       <input type="password" id="password" name="password" minlength="8" required>
 
-      <label for="confirm">Confirmer le mot de passe</label>
+      <label for="confirm">Confirm password</label>
       <input type="password" id="confirm" name="confirm" minlength="8" required>
 
-      <button type="submit">Créer mon compte</button>
+      <button type="submit">Create my account</button>
     </form>
   {% endif %}
 </div>

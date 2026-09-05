@@ -1,13 +1,13 @@
 # -----------------------------------------------------------------------
-# À installer sur le PC HÔTE Ubuntu (PAS sur le Raspberry).
-# Copiez ce fichier vers /etc/sudoers.d/mc-controller puis :
+# Install on the Ubuntu HOST PC (NOT on the Raspberry Pi).
+# Copy this file to /etc/sudoers.d/mc-controller, then:
 #   sudo chmod 440 /etc/sudoers.d/mc-controller
-#   sudo visudo -c        # vérifie la syntaxe avant de faire confiance au fichier
+#   sudo visudo -c        # checks the syntax before trusting the file
 #
-# Remplacez "votre_utilisateur" et le chemin du script par vos valeurs réelles
-# (les mêmes que SSH_USER et START_SCRIPT_PATH dans instance/config.py).
-# N'autorisez QUE ces deux commandes précises en NOPASSWD, pas "ALL".
+# Replace "your_user" and the script path with your real values
+# (the same ones as SSH_USER and START_SCRIPT_PATH in instance/config.py).
+# Allow ONLY these two exact commands in NOPASSWD, not "ALL".
 # -----------------------------------------------------------------------
 
-votre_utilisateur ALL=(ALL) NOPASSWD: /usr/bin/bash /chemin/vers/votre/script_de_lancement.sh
-votre_utilisateur ALL=(ALL) NOPASSWD: /usr/sbin/shutdown -h now
+your_user ALL=(ALL) NOPASSWD: /usr/bin/bash /path/to/your/start_script.sh
+your_user ALL=(ALL) NOPASSWD: /usr/sbin/shutdown -h now
